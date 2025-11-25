@@ -3,11 +3,13 @@
 	"version": "0.0.0",
 	"private": true,
 	"scripts": {
-		"deploy": "wrangler deploy",
+		"deploy": "wrangler deploy --env=\"\"",
+		"deploy:dev": "wrangler deploy --env dev",
 		"dev": "wrangler dev",
 		"start": "wrangler dev",
 		"cf-typegen": "wrangler types"
 	},
+	"packageManager": "bun@1.1.0",
 	"devDependencies": {
 		"typescript": "^5.5.2",
 		"wrangler": "^4.50.0"
