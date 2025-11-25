@@ -20,6 +20,7 @@
 	"observability": {
 		"enabled": true,
 	},
+	"logpush": true,
 	"placement": { "mode": "smart" },
 	"env": {
 		"dev": {
