@@ -1,1 +1,1 @@
-bun run lint-staged && bun run cf-typegen && git add worker-configuration.d.ts && bun install --production
+bun run lint-staged && bun run cf-typegen && git add worker-configuration.d.ts
