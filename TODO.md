@@ -1,0 +1,1 @@
+- Optimize Deployment (with only production dependencies and no requiring husky as a core dependency)
