@@ -1,17 +1,25 @@
 {
-	"name": "web-ingest-worker",
-	"version": "0.0.0",
-	"private": true,
-	"scripts": {
-		"deploy": "wrangler deploy --env=\"\"",
-		"deploy:dev": "wrangler deploy --env dev",
-		"dev": "wrangler dev",
-		"start": "wrangler dev",
-		"cf-typegen": "wrangler types"
-	},
-	"packageManager": "bun@1.1.0",
-	"devDependencies": {
-		"typescript": "^5.5.2",
-		"wrangler": "^4.50.0"
-	}
+  "name": "web-ingest-worker",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy --env=\"\"",
+    "deploy:dev": "wrangler deploy --env dev",
+    "dev": "wrangler dev",
+    "start": "wrangler dev",
+    "cf-typegen": "wrangler types",
+    "prepare": "husky",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "bun prettier src/ --write"
+  },
+  "packageManager": "bun@1.1.0",
+  "devDependencies": {
+    "@antfu/eslint-config": "^6.2.0",
+    "@commitlint/config-conventional": "^20.0.0",
+    "husky": "^9.1.7",
+    "prettier": "^3.6.2",
+    "typescript": "^5.5.2",
+    "wrangler": "^4.50.0"
+  }
 }
