@@ -1,6 +1,4 @@
-FROM node:20-alpine AS deps
-
-RUN corepack enable && corepack prepare bun@1.3.3 --activate
+FROM oven/bun:1.3.3-alpine AS deps
 
 WORKDIR /app
 
@@ -8,9 +6,7 @@ COPY package.json bun.lock ./
 
 RUN bun install --frozen-lockfile
 
-FROM node:20-alpine AS builder
-
-RUN corepack enable && corepack prepare bun@1.3.3 --activate
+FROM oven/bun:1.3.3-alpine AS builder
 
 WORKDIR /app
 
@@ -20,9 +16,7 @@ COPY . .
 
 RUN bun run cf-typegen
 
-FROM node:20-alpine AS runner
-
-RUN corepack enable && corepack prepare bun@1.3.3 --activate
+FROM oven/bun:1.3.3-alpine AS runner
 
 WORKDIR /app
 
