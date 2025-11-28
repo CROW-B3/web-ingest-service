@@ -4,7 +4,7 @@ RUN corepack enable && corepack prepare bun@1.3.3 --activate
 
 WORKDIR /app
 
-COPY package.json bun.lock bunfig.toml ./
+COPY package.json bun.lock ./
 
 RUN bun install --frozen-lockfile
 
