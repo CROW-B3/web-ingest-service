@@ -27,7 +27,6 @@ COPY --from=builder --chown=workeruser:workergroup /app/src ./src
 COPY --from=builder --chown=workeruser:workergroup /app/wrangler.jsonc ./
 COPY --from=builder --chown=workeruser:workergroup /app/package.json ./
 COPY --from=builder --chown=workeruser:workergroup /app/node_modules ./node_modules
-COPY --from=builder --chown=workeruser:workergroup /app/worker-configuration.d.ts ./
 COPY --from=builder --chown=workeruser:workergroup /app/tsconfig.json ./
 
 USER workeruser
