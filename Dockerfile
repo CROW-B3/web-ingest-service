@@ -14,8 +14,6 @@ COPY --from=deps /app/node_modules ./node_modules
 
 COPY . .
 
-RUN bun run cf-typegen
-
 FROM oven/bun:1.3.3-alpine AS runner
 
 WORKDIR /app
