@@ -3,6 +3,9 @@
 	"name": "crow-web-ingest-worker",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-11-25",
+	"dev": {
+		"port": 3001
+	},
 	"migrations": [
 		{
 			"new_sqlite_classes": ["MyDurableObject"],
@@ -17,21 +20,24 @@
 			},
 		],
 	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "web-ingest-worker",
+			"database_id": "7bc5c20d-8807-4c2e-8e51-72ef3ab8282e",
+			"remote": true,
+		},
+	],
+	"r2_buckets": [
+		{
+			"binding": "BUCKET",
+			"bucket_name": "web-ingest-worker",
+			"remote": true,
+		},
+	],
 	"observability": {
 		"enabled": true,
 	},
 	"logpush": true,
 	"placement": { "mode": "smart" },
-	"env": {
-		"dev": {
-			"durable_objects": {
-				"bindings": [
-					{
-						"class_name": "MyDurableObject",
-						"name": "MY_DURABLE_OBJECT",
-					},
-				],
-			},
-		},
-	},
 }
