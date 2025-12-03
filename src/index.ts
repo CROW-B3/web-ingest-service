@@ -8,6 +8,34 @@ import { DurableObject } from 'cloudflare:workers';
  * - Saves metadata (R2 URL, timestamp, etc.) in D1 database
  */
 
+/**
+ * Pointer coordinate data point
+ */
+interface PointerCoordinate {
+  timestamp: number;
+  clientX: number;
+  clientY: number;
+  pageX: number;
+  pageY: number;
+  pointerType: string;
+  pressure: number;
+  pointerId: number;
+}
+
+/**
+ * Batch of pointer coordinates from SDK
+ */
+interface PointerCoordinateBatch {
+  sessionId: string;
+  coordinates: PointerCoordinate[];
+  batchStartTime: number;
+  batchEndTime: number;
+  url: string;
+  site?: string;
+  hostname?: string;
+  environment?: string;
+}
+
 /** A Durable Object's behavior is defined in an exported Javascript class */
 export class CrowWebSession extends DurableObject<Env> {
 	/**
@@ -30,6 +58,79 @@ export class CrowWebSession extends DurableObject<Env> {
    */
   async sayHello(name: string): Promise<string> {
     return `Hello, ${name}!`;
+  }
+}
+
+/**
+ * Handle pointer coordinate batch upload
+ */
+async function handlePointerDataUpload(
+  request: Request,
+  _env: Env
+): Promise<Response> {
+  try {
+    // Parse JSON body
+    const batch = (await request.json()) as PointerCoordinateBatch;
+
+    // Console.warn for testing
+    console.warn('[PointerData] Received batch:', {
+      sessionId: batch.sessionId,
+      coordinateCount: batch.coordinates?.length || 0,
+      batchStartTime: batch.batchStartTime,
+      batchEndTime: batch.batchEndTime,
+      duration: `${batch.batchEndTime - batch.batchStartTime}ms`,
+      url: batch.url,
+      site: batch.site,
+      hostname: batch.hostname,
+      environment: batch.environment,
+    });
+
+    // Log first and last coordinates
+    if (batch.coordinates && batch.coordinates.length > 0) {
+      console.warn('[PointerData] First coordinate:', batch.coordinates[0]);
+      console.warn(
+        '[PointerData] Last coordinate:',
+        batch.coordinates[batch.coordinates.length - 1]
+      );
+
+      // Log some sample coordinates in the middle
+      if (batch.coordinates.length > 10) {
+        const middleIndex = Math.floor(batch.coordinates.length / 2);
+        console.warn(
+          '[PointerData] Middle coordinates (sample):',
+          batch.coordinates.slice(middleIndex - 2, middleIndex + 3)
+        );
+      }
+    }
+
+    // TODO: Store in D1 database (for future implementation)
+    // For now, just return success with the data we received
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        sessionId: batch.sessionId,
+        coordinatesReceived: batch.coordinates?.length || 0,
+        batchDuration: batch.batchEndTime - batch.batchStartTime,
+        message: 'Pointer data received and logged successfully',
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  } catch (error) {
+    console.error('[PointerData] Error processing pointer data:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }),
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
   }
 }
 
@@ -207,6 +308,16 @@ export default {
       return response;
     }
 
+    // Route: POST /pointer-data - Handle pointer coordinate batches
+    if (url.pathname === '/pointer-data' && request.method === 'POST') {
+      const response = await handlePointerDataUpload(request, env);
+      // Add CORS headers to response
+      Object.entries(corsHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value);
+      });
+      return response;
+    }
+
     // Route: GET / - Health check
     if (url.pathname === '/' && request.method === 'GET') {
       return new Response(
@@ -218,6 +329,11 @@ export default {
               path: '/screenshot',
               method: 'POST',
               description: 'Upload screenshot',
+            },
+            {
+              path: '/pointer-data',
+              method: 'POST',
+              description: 'Upload pointer coordinate batch',
             },
           ],
         }),
