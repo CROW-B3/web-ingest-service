@@ -66,7 +66,7 @@ export class MyDurableObject extends DurableObject<Env> {
  */
 async function handlePointerDataUpload(
   request: Request,
-  _env: Env
+  env: Env
 ): Promise<Response> {
   try {
     // Parse JSON body
@@ -103,8 +103,49 @@ async function handlePointerDataUpload(
       }
     }
 
-    // TODO: Store in D1 database (for future implementation)
-    // For now, just return success with the data we received
+    // Create date string (YYYY-MM-DD) for partitioning
+    const now = Date.now();
+    const dateObj = new Date(now);
+    const date = dateObj.toISOString().split('T')[0];
+
+    // Insert batch into D1 database
+    const coordinatesJson = JSON.stringify(batch.coordinates);
+
+    await env.DB.prepare(
+      `INSERT INTO pointer_batches (
+        session_id,
+        url,
+        site,
+        hostname,
+        environment,
+        batch_start_time,
+        batch_end_time,
+        coordinate_count,
+        coordinates,
+        created_at,
+        date
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(
+        batch.sessionId,
+        batch.url,
+        batch.site || null,
+        batch.hostname || null,
+        batch.environment || 'production',
+        batch.batchStartTime,
+        batch.batchEndTime,
+        batch.coordinates?.length || 0,
+        coordinatesJson,
+        now,
+        date
+      )
+      .run();
+
+    console.warn('[PointerData] Batch stored in D1 successfully:', {
+      sessionId: batch.sessionId,
+      coordinateCount: batch.coordinates?.length || 0,
+      date,
+    });
 
     return new Response(
       JSON.stringify({
@@ -112,7 +153,9 @@ async function handlePointerDataUpload(
         sessionId: batch.sessionId,
         coordinatesReceived: batch.coordinates?.length || 0,
         batchDuration: batch.batchEndTime - batch.batchStartTime,
-        message: 'Pointer data received and logged successfully',
+        stored: true,
+        date,
+        message: 'Pointer data received and stored in D1 successfully',
       }),
       {
         status: 200,
