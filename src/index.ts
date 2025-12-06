@@ -8,6 +8,34 @@ import { DurableObject } from 'cloudflare:workers';
  * - Saves metadata (R2 URL, timestamp, etc.) in D1 database
  */
 
+/**
+ * Pointer coordinate data point
+ */
+interface PointerCoordinate {
+  timestamp: number;
+  clientX: number;
+  clientY: number;
+  pageX: number;
+  pageY: number;
+  pointerType: string;
+  pressure: number;
+  pointerId: number;
+}
+
+/**
+ * Batch of pointer coordinates from SDK
+ */
+interface PointerCoordinateBatch {
+  sessionId: string;
+  coordinates: PointerCoordinate[];
+  batchStartTime: number;
+  batchEndTime: number;
+  url: string;
+  site?: string;
+  hostname?: string;
+  environment?: string;
+}
+
 /** A Durable Object's behavior is defined in an exported Javascript class */
 export class MyDurableObject extends DurableObject<Env> {
   /**
@@ -30,6 +58,122 @@ export class MyDurableObject extends DurableObject<Env> {
    */
   async sayHello(name: string): Promise<string> {
     return `Hello, ${name}!`;
+  }
+}
+
+/**
+ * Handle pointer coordinate batch upload
+ */
+async function handlePointerDataUpload(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  try {
+    // Parse JSON body
+    const batch = (await request.json()) as PointerCoordinateBatch;
+
+    // Console.warn for testing
+    console.warn('[PointerData] Received batch:', {
+      sessionId: batch.sessionId,
+      coordinateCount: batch.coordinates?.length || 0,
+      batchStartTime: batch.batchStartTime,
+      batchEndTime: batch.batchEndTime,
+      duration: `${batch.batchEndTime - batch.batchStartTime}ms`,
+      url: batch.url,
+      site: batch.site,
+      hostname: batch.hostname,
+      environment: batch.environment,
+    });
+
+    // Log first and last coordinates
+    if (batch.coordinates && batch.coordinates.length > 0) {
+      console.warn('[PointerData] First coordinate:', batch.coordinates[0]);
+      console.warn(
+        '[PointerData] Last coordinate:',
+        batch.coordinates[batch.coordinates.length - 1]
+      );
+
+      // Log some sample coordinates in the middle
+      if (batch.coordinates.length > 10) {
+        const middleIndex = Math.floor(batch.coordinates.length / 2);
+        console.warn(
+          '[PointerData] Middle coordinates (sample):',
+          batch.coordinates.slice(middleIndex - 2, middleIndex + 3)
+        );
+      }
+    }
+
+    // Create date string (YYYY-MM-DD) for partitioning
+    const now = Date.now();
+    const dateObj = new Date(now);
+    const date = dateObj.toISOString().split('T')[0];
+
+    // Insert batch into D1 database
+    const coordinatesJson = JSON.stringify(batch.coordinates);
+
+    await env.DB.prepare(
+      `INSERT INTO pointer_batches (
+        session_id,
+        url,
+        site,
+        hostname,
+        environment,
+        batch_start_time,
+        batch_end_time,
+        coordinate_count,
+        coordinates,
+        created_at,
+        date
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(
+        batch.sessionId,
+        batch.url,
+        batch.site || null,
+        batch.hostname || null,
+        batch.environment || 'production',
+        batch.batchStartTime,
+        batch.batchEndTime,
+        batch.coordinates?.length || 0,
+        coordinatesJson,
+        now,
+        date
+      )
+      .run();
+
+    console.warn('[PointerData] Batch stored in D1 successfully:', {
+      sessionId: batch.sessionId,
+      coordinateCount: batch.coordinates?.length || 0,
+      date,
+    });
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        sessionId: batch.sessionId,
+        coordinatesReceived: batch.coordinates?.length || 0,
+        batchDuration: batch.batchEndTime - batch.batchStartTime,
+        stored: true,
+        date,
+        message: 'Pointer data received and stored in D1 successfully',
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  } catch (error) {
+    console.error('[PointerData] Error processing pointer data:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }),
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
   }
 }
 
@@ -170,7 +314,7 @@ export default {
    *
    * @param request - The request submitted to the Worker from the client
    * @param env - The interface to reference bindings declared in wrangler.jsonc
-   * @param ctx - The execution context of the Worker
+   * @param _ctx - The execution context of the Worker
    * @returns The response to be sent back to the client
    */
   async fetch(request, env, _ctx): Promise<Response> {
@@ -201,6 +345,16 @@ export default {
       return response;
     }
 
+    // Route: POST /pointer-data - Handle pointer coordinate batches
+    if (url.pathname === '/pointer-data' && request.method === 'POST') {
+      const response = await handlePointerDataUpload(request, env);
+      // Add CORS headers to response
+      Object.entries(corsHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value);
+      });
+      return response;
+    }
+
     // Route: GET / - Health check
     if (url.pathname === '/' && request.method === 'GET') {
       return new Response(
@@ -212,6 +366,11 @@ export default {
               path: '/screenshot',
               method: 'POST',
               description: 'Upload screenshot',
+            },
+            {
+              path: '/pointer-data',
+              method: 'POST',
+              description: 'Upload pointer coordinate batch',
             },
           ],
         }),
