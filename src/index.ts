@@ -335,8 +335,8 @@ export default {
       });
     }
 
-    // Route: POST /screenshot - Handle screenshot uploads
-    if (url.pathname === '/screenshot' && request.method === 'POST') {
+    // Route: POST /screenshots - Handle screenshot uploads
+    if (url.pathname === '/screenshots' && request.method === 'POST') {
       const response = await handleScreenshotUpload(request, env);
       // Add CORS headers to response
       Object.entries(corsHeaders).forEach(([key, value]) => {
@@ -363,7 +363,7 @@ export default {
           service: 'web-ingest-worker',
           endpoints: [
             {
-              path: '/screenshot',
+              path: '/screenshots',
               method: 'POST',
               description: 'Upload screenshot',
             },
