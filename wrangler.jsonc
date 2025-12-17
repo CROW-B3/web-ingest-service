@@ -1,6 +1,6 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "crow-web-ingest-worker",
+	"name": "crow-web-ingest-worker-dev",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-11-25",
 	"migrations": [
