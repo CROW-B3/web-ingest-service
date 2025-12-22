@@ -23,9 +23,12 @@ export async function handleScreenshotUpload(
     const timestamp = formData.get('timestamp') as string;
     const url = formData.get('url') as string;
     const userAgent = formData.get('userAgent') as string;
-    const site = formData.get('site') as string;
-    const hostname = formData.get('hostname') as string;
-    const environment = formData.get('environment') as string;
+
+    // Provide defaults for NOT NULL fields
+    const site = (formData.get('site') as string) || 'unknown';
+    const hostname = (formData.get('hostname') as string) || 'unknown';
+    const environment = (formData.get('environment') as string) || 'production';
+
     const viewport = JSON.parse((formData.get('viewport') as string) || '{}');
 
     // Generate R2 key with timestamp and filename
@@ -46,7 +49,7 @@ export async function handleScreenshotUpload(
 
     // Generate R2 URL (for D1 storage)
     // In production, you'd use your actual R2 public URL or custom domain
-    const r2Url = `https://web-ingest-worker.r2.cloudflarestorage.com/${r2Key}`;
+    const r2Url = `https://pub-150ee81a748a4f14bdd27c39a7eaf0a5.r2.dev/${r2Key}`;
 
     // Create date string (YYYY-MM-DD)
     const dateObj = new Date(Number.parseInt(timestamp));
