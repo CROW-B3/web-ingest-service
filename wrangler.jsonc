@@ -6,6 +6,12 @@
 	"dev": {
 		"port": 3001
 	},
+	"vars": {
+		"R2_ENDPOINT": "https://8f0203259905d8923687286c84921e6c.r2.cloudflarestorage.com",
+		"R2_BUCKET_NAME": "web-ingest-worker",
+		"R2_PUBLIC_URL": "https://pub-150ee81a748a4f14bdd27c39a7eaf0a5.r2.dev",
+		"R2_UPLOAD_PREFIX": "test"
+	},
 	"d1_databases": [
 		{
 			"binding": "DB",
