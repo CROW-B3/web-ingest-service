@@ -1,5 +1,6 @@
 import { drizzle } from 'drizzle-orm/d1';
 import { screenshots } from '../db/schema';
+import { createS3Client, uploadToR2 } from '../utils/s3';
 
 /**
  * Handle screenshot upload requests
@@ -35,24 +36,20 @@ export async function handleScreenshotUpload(
     const viewport = JSON.parse((formData.get('viewport') as string) || '{}');
 
     // Generate R2 key with timestamp and filename
-    const r2Key = `test/${timestamp}-${filename}`;
+    const r2Key = `${env.R2_UPLOAD_PREFIX}/${timestamp}-${filename}`;
 
-    // Upload to R2
-    await env.BUCKET.put(r2Key, screenshot, {
-      httpMetadata: {
-        contentType: screenshot.type,
-      },
-      customMetadata: {
+    // Initialize S3 client and upload to R2
+    const s3Client = createS3Client(env);
+    const r2Url = await uploadToR2(s3Client, env, {
+      key: r2Key,
+      file: screenshot,
+      metadata: {
         originalFilename: filename,
         uploadTimestamp: timestamp,
         url,
         site,
       },
     });
-
-    // Generate R2 URL (for D1 storage)
-    // In production, you'd use your actual R2 public URL or custom domain
-    const r2Url = `https://pub-150ee81a748a4f14bdd27c39a7eaf0a5.r2.dev/${r2Key}`;
 
     // Create date string (YYYY-MM-DD)
     const dateObj = new Date(Number.parseInt(timestamp));
