@@ -1,3 +1,6 @@
+import { drizzle } from 'drizzle-orm/d1';
+import { screenshots } from '../db/schema';
+
 /**
  * Handle screenshot upload requests
  */
@@ -55,42 +58,24 @@ export async function handleScreenshotUpload(
     const dateObj = new Date(Number.parseInt(timestamp));
     const date = dateObj.toISOString().split('T')[0];
 
-    // Insert metadata into D1
-    await env.DB.prepare(
-      `INSERT INTO screenshots (
-				r2_url,
-				filename,
-				site,
-				hostname,
-				environment,
-				url,
-				user_agent,
-				viewport_width,
-				viewport_height,
-				scroll_x,
-				scroll_y,
-				file_size,
-				timestamp,
-				date
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-      .bind(
-        r2Url,
-        filename,
-        site,
-        hostname,
-        environment,
-        url,
-        userAgent,
-        viewport.width,
-        viewport.height,
-        viewport.scrollX,
-        viewport.scrollY,
-        screenshot.size,
-        Number.parseInt(timestamp),
-        date
-      )
-      .run();
+    // Insert metadata into D1 using Drizzle
+    const db = drizzle(env.DB);
+    await db.insert(screenshots).values({
+      r2Url,
+      filename,
+      site,
+      hostname,
+      environment,
+      url,
+      userAgent,
+      viewportWidth: viewport.width,
+      viewportHeight: viewport.height,
+      scrollX: viewport.scrollX,
+      scrollY: viewport.scrollY,
+      fileSize: screenshot.size,
+      timestamp: Number.parseInt(timestamp),
+      date,
+    });
 
     console.warn('Screenshot uploaded successfully:', {
       r2Key,
