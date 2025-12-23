@@ -1,4 +1,6 @@
 import type { PointerCoordinateBatch } from '../types/pointer';
+import { drizzle } from 'drizzle-orm/d1';
+import { pointerBatches } from '../db/schema';
 
 /**
  * Handle pointer coordinate batch upload
@@ -47,38 +49,23 @@ export async function handlePointerDataUpload(
     const dateObj = new Date(now);
     const date = dateObj.toISOString().split('T')[0];
 
-    // Insert batch into D1 database
+    // Insert batch into D1 database using Drizzle
     const coordinatesJson = JSON.stringify(batch.coordinates);
 
-    await env.DB.prepare(
-      `INSERT INTO pointer_batches (
-        session_id,
-        url,
-        site,
-        hostname,
-        environment,
-        batch_start_time,
-        batch_end_time,
-        coordinate_count,
-        coordinates,
-        created_at,
-        date
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-      .bind(
-        batch.sessionId,
-        batch.url,
-        batch.site || null,
-        batch.hostname || null,
-        batch.environment || 'production',
-        batch.batchStartTime,
-        batch.batchEndTime,
-        batch.coordinates?.length || 0,
-        coordinatesJson,
-        now,
-        date
-      )
-      .run();
+    const db = drizzle(env.DB);
+    await db.insert(pointerBatches).values({
+      sessionId: batch.sessionId,
+      url: batch.url,
+      site: batch.site || null,
+      hostname: batch.hostname || null,
+      environment: batch.environment || 'production',
+      batchStartTime: batch.batchStartTime,
+      batchEndTime: batch.batchEndTime,
+      coordinateCount: batch.coordinates?.length || 0,
+      coordinates: coordinatesJson,
+      createdAt: now,
+      date,
+    });
 
     console.warn('[PointerData] Batch stored in D1 successfully:', {
       sessionId: batch.sessionId,
