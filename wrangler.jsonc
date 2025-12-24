@@ -18,25 +18,13 @@
         },
       ],
     },
+    {
+      "tag": "v2",
+      "deleted_classes": ["CrowWebSession"],
+    },
   ],
-  "durable_objects": {
-    "bindings": [
-      {
-        "class_name": "CrowWebSession",
-        "name": "CROW_WEB_SESSION",
-      },
-    ],
-  },
   "observability": {
     "enabled": true,
-  },
-  "queues": {
-    "producers": [
-      {
-        "queue": "crow-web-session-export",
-        "binding": "WEB_SESSION_EXPORT",
-      },
-    ],
   },
   "logpush": true,
   "placement": { "mode": "smart" },
@@ -56,23 +44,11 @@
             },
           ],
         },
+        {
+          "tag": "v2",
+          "deleted_classes": ["CrowWebSession"],
+        },
       ],
-      "durable_objects": {
-        "bindings": [
-          {
-            "class_name": "CrowWebSession",
-            "name": "CROW_WEB_SESSION",
-          },
-        ],
-      },
-      "queues": {
-        "producers": [
-          {
-            "queue": "crow-web-session-export-dev",
-            "binding": "WEB_SESSION_EXPORT",
-          },
-        ],
-      },
     },
   },
 }
