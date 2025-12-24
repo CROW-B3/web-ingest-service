@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "crow-web-ingest-worker",
+  "name": "crow-web-ingest-worker-dev",
   "account_id": "8f0203259905d8923687286c84921e6c",
   "main": "src/index.ts",
   "compatibility_date": "2025-11-25",
@@ -48,26 +48,27 @@
   "logpush": true,
   "placement": { "mode": "smart" },
   "env": {
-    "dev": {
-      "migrations": [
+    "production": {
+      "name": "crow-web-ingest-worker",
+      "d1_databases": [
         {
-          "new_sqlite_classes": ["MyDurableObject"],
-          "tag": "v1",
-        },
-        {
-          "tag": "v3",
-          "renamed_classes": [
-            {
-              "from": "MyDurableObject",
-              "to": "CrowWebSession",
-            },
-          ],
-        },
-        {
-          "tag": "v2",
-          "deleted_classes": ["CrowWebSession"],
-        },
+          "binding": "DB",
+          "database_name": "crow-web-ingest-service-db",
+          "database_id": "58b32c68-d807-4b42-9075-08a12078bdf7"
+        }
       ],
+      "r2_buckets": [
+        {
+          "binding": "R2_BUCKET",
+          "bucket_name": "crow-web-ingest-service-store"
+        }
+      ],
+      "vars": {
+        "R2_ENDPOINT": "https://8f0203259905d8923687286c84921e6c.r2.cloudflarestorage.com",
+        "R2_BUCKET_NAME": "crow-web-ingest-service-store",
+        "R2_PUBLIC_URL": "https://pub-703de4c152d04451ad7e562f1cedfca9.r2.dev",
+        "R2_UPLOAD_PREFIX": "screenshots"
+      }
     },
   },
 }
