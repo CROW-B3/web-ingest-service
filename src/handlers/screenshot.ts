@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/d1';
-import { screenshots } from '../db/schema';
+import { interactionBatches, screenshots } from '../db/schema';
 import { createS3Client, uploadToR2 } from '../utils/s3';
 
 /**
@@ -52,26 +52,44 @@ export async function handleScreenshotUpload(
     });
 
     // Create date string (YYYY-MM-DD)
-    const dateObj = new Date(Number.parseInt(timestamp));
+    const timestampMs = Number.parseInt(timestamp);
+    const dateObj = new Date(timestampMs);
     const date = dateObj.toISOString().split('T')[0];
 
-    // Insert metadata into D1 using Drizzle
     const db = drizzle(env.DB);
+
+    // Create interaction batch first (new normalized schema)
+    const interactionBatchResult = await db
+      .insert(interactionBatches)
+      .values({
+        sessionId: 'legacy-screenshot', // Legacy endpoint doesn't have session concept
+        url,
+        site,
+        hostname,
+        environment,
+        userAgent,
+        batchStartTime: timestampMs,
+        batchEndTime: timestampMs,
+        hasScreenshot: true,
+        hasPointerData: false,
+        createdAt: Date.now(),
+        date,
+      })
+      .returning();
+
+    const batchId = interactionBatchResult[0].id;
+
+    // Insert screenshot-specific data
     await db.insert(screenshots).values({
+      batchId,
       r2Url,
       filename,
-      site,
-      hostname,
-      environment,
-      url,
-      userAgent,
       viewportWidth: viewport.width,
       viewportHeight: viewport.height,
       scrollX: viewport.scrollX,
       scrollY: viewport.scrollY,
       fileSize: screenshot.size,
-      timestamp: Number.parseInt(timestamp),
-      date,
+      capturedAt: timestampMs,
     });
 
     console.warn('Screenshot uploaded successfully:', {

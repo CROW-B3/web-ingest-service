@@ -9,6 +9,7 @@
 
 import { handlePointerDataUpload } from './handlers/pointer-data';
 import { handleScreenshotUpload } from './handlers/screenshot';
+import { handleUnifiedInteractionUpload } from './handlers/unified-interaction';
 import {
   addCorsHeaders,
   corsHeaders,
@@ -24,13 +25,19 @@ export default {
       return handleCorsPreFlight();
     }
 
-    // Route: POST /screenshots - Handle screenshot uploads
+    // Route: POST /interaction-batch - Handle unified interaction batches (screenshots + pointer data)
+    if (url.pathname === '/interaction-batch' && request.method === 'POST') {
+      const response = await handleUnifiedInteractionUpload(request, env);
+      return addCorsHeaders(response);
+    }
+
+    // Route: POST /screenshots - Handle screenshot uploads (legacy, for backward compatibility)
     if (url.pathname === '/screenshots' && request.method === 'POST') {
       const response = await handleScreenshotUpload(request, env);
       return addCorsHeaders(response);
     }
 
-    // Route: POST /pointer-data - Handle pointer coordinate batches
+    // Route: POST /pointer-data - Handle pointer coordinate batches (legacy, for backward compatibility)
     if (url.pathname === '/pointer-data' && request.method === 'POST') {
       const response = await handlePointerDataUpload(request, env);
       return addCorsHeaders(response);
@@ -44,14 +51,20 @@ export default {
           service: 'web-ingest-worker',
           endpoints: [
             {
+              path: '/interaction-batch',
+              method: 'POST',
+              description:
+                'Upload unified interaction batch (screenshots + pointer data)',
+            },
+            {
               path: '/screenshots',
               method: 'POST',
-              description: 'Upload screenshot',
+              description: 'Upload screenshot (legacy)',
             },
             {
               path: '/pointer-data',
               method: 'POST',
-              description: 'Upload pointer coordinate batch',
+              description: 'Upload pointer coordinate batch (legacy)',
             },
           ],
         }),
