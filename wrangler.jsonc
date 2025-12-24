@@ -7,12 +7,6 @@
   "dev": {
     "port": 3001
   },
-  "vars": {
-    "R2_ENDPOINT": "https://8f0203259905d8923687286c84921e6c.r2.cloudflarestorage.com",
-    "R2_BUCKET_NAME": "web-ingest-worker",
-    "R2_PUBLIC_URL": "https://pub-150ee81a748a4f14bdd27c39a7eaf0a5.r2.dev",
-    "R2_UPLOAD_PREFIX": "test"
-  },
   "migrations": [
     {
       "new_sqlite_classes": ["MyDurableObject"],
@@ -39,18 +33,22 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "web-ingest-worker",
-      "database_id": "7bc5c20d-8807-4c2e-8e51-72ef3ab8282e",
-      "remote": true,
-    },
+      "database_name": "crow-web-ingest-service-db-dev",
+      "database_id": "e73411e4-8c1b-48a6-ad20-2bd74249d29a"
+    }
   ],
   "r2_buckets": [
     {
-      "binding": "BUCKET",
-      "bucket_name": "web-ingest-worker",
-      "remote": true,
-    },
+      "binding": "R2_BUCKET",
+      "bucket_name": "crow-web-ingest-service-store-dev"
+    }
   ],
+  "vars": {
+    "R2_ENDPOINT": "https://8f0203259905d8923687286c84921e6c.r2.cloudflarestorage.com",
+    "R2_BUCKET_NAME": "crow-web-ingest-service-store-dev",
+    "R2_PUBLIC_URL": "https://pub-e64a25eb7e0f46fab0acd0c47eb44194.r2.dev",
+    "R2_UPLOAD_PREFIX": "screenshots"
+  },
   "observability": {
     "enabled": true,
   },
