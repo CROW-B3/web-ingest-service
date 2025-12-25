@@ -1,6 +1,7 @@
 import type { PointerCoordinateBatch } from '../types/pointer';
 import { drizzle } from 'drizzle-orm/d1';
 import { pointerBatches } from '../db/schema';
+import { logger } from '../utils/logger';
 
 /**
  * Handle pointer coordinate batch upload
@@ -13,33 +14,45 @@ export async function handlePointerDataUpload(
     // Parse JSON body
     const batch = (await request.json()) as PointerCoordinateBatch;
 
-    // Console.warn for testing
-    console.warn('[PointerData] Received batch:', {
-      sessionId: batch.sessionId,
-      coordinateCount: batch.coordinates?.length || 0,
-      batchStartTime: batch.batchStartTime,
-      batchEndTime: batch.batchEndTime,
-      duration: `${batch.batchEndTime - batch.batchStartTime}ms`,
-      url: batch.url,
-      site: batch.site,
-      hostname: batch.hostname,
-      environment: batch.environment,
-    });
+    logger.info(
+      {
+        sessionId: batch.sessionId,
+        coordinateCount: batch.coordinates?.length || 0,
+        batchStartTime: batch.batchStartTime,
+        batchEndTime: batch.batchEndTime,
+        duration: `${batch.batchEndTime - batch.batchStartTime}ms`,
+        url: batch.url,
+        site: batch.site,
+        hostname: batch.hostname,
+        environment: batch.environment,
+      },
+      'Received pointer data batch'
+    );
 
     // Log first and last coordinates
     if (batch.coordinates && batch.coordinates.length > 0) {
-      console.warn('[PointerData] First coordinate:', batch.coordinates[0]);
-      console.warn(
-        '[PointerData] Last coordinate:',
-        batch.coordinates[batch.coordinates.length - 1]
+      logger.debug(
+        { firstCoordinate: batch.coordinates[0] },
+        'First coordinate in batch'
+      );
+      logger.debug(
+        {
+          lastCoordinate: batch.coordinates[batch.coordinates.length - 1],
+        },
+        'Last coordinate in batch'
       );
 
       // Log some sample coordinates in the middle
       if (batch.coordinates.length > 10) {
         const middleIndex = Math.floor(batch.coordinates.length / 2);
-        console.warn(
-          '[PointerData] Middle coordinates (sample):',
-          batch.coordinates.slice(middleIndex - 2, middleIndex + 3)
+        logger.debug(
+          {
+            middleCoordinates: batch.coordinates.slice(
+              middleIndex - 2,
+              middleIndex + 3
+            ),
+          },
+          'Middle coordinates sample'
         );
       }
     }
@@ -67,11 +80,14 @@ export async function handlePointerDataUpload(
       date,
     });
 
-    console.warn('[PointerData] Batch stored in D1 successfully:', {
-      sessionId: batch.sessionId,
-      coordinateCount: batch.coordinates?.length || 0,
-      date,
-    });
+    logger.info(
+      {
+        sessionId: batch.sessionId,
+        coordinateCount: batch.coordinates?.length || 0,
+        date,
+      },
+      'Pointer data batch stored in D1 successfully'
+    );
 
     return new Response(
       JSON.stringify({
@@ -89,7 +105,10 @@ export async function handlePointerDataUpload(
       }
     );
   } catch (error) {
-    console.error('[PointerData] Error processing pointer data:', error);
+    logger.error(
+      error instanceof Error ? error : new Error(String(error)),
+      'Error processing pointer data'
+    );
     return new Response(
       JSON.stringify({
         success: false,

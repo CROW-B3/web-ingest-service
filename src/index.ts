@@ -14,30 +14,39 @@ import {
   corsHeaders,
   handleCorsPreFlight,
 } from './middleware/cors';
+import { logger } from './utils/logger';
 
 export default {
   async fetch(request, env, _ctx): Promise<Response> {
     const url = new URL(request.url);
+    const method = request.method;
+    const pathname = url.pathname;
+
+    logger.info({ method, pathname, url: request.url }, 'Incoming request');
 
     // Handle CORS preflight
-    if (request.method === 'OPTIONS') {
+    if (method === 'OPTIONS') {
+      logger.debug('Handling CORS preflight request');
       return handleCorsPreFlight();
     }
 
     // Route: POST /screenshots - Handle screenshot uploads
-    if (url.pathname === '/screenshots' && request.method === 'POST') {
+    if (pathname === '/screenshots' && method === 'POST') {
+      logger.info('Handling screenshot upload request');
       const response = await handleScreenshotUpload(request, env);
       return addCorsHeaders(response);
     }
 
     // Route: POST /pointer-data - Handle pointer coordinate batches
-    if (url.pathname === '/pointer-data' && request.method === 'POST') {
+    if (pathname === '/pointer-data' && method === 'POST') {
+      logger.info('Handling pointer data upload request');
       const response = await handlePointerDataUpload(request, env);
       return addCorsHeaders(response);
     }
 
     // Route: GET / - Health check
-    if (url.pathname === '/' && request.method === 'GET') {
+    if (pathname === '/' && method === 'GET') {
+      logger.info('Health check request');
       return new Response(
         JSON.stringify({
           status: 'ok',
@@ -63,6 +72,7 @@ export default {
     }
 
     // 404 for unknown routes
+    logger.warn({ method, pathname }, 'Route not found');
     return new Response('Not Found', { status: 404, headers: corsHeaders });
   },
 } satisfies ExportedHandler<Env>;
