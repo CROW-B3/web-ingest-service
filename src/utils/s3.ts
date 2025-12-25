@@ -1,9 +1,15 @@
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { logger } from './logger';
 
 /**
  * Create an S3 client configured for Cloudflare R2
  */
 export function createS3Client(env: Env): S3Client {
+  logger.debug(
+    { endpoint: env.R2_ENDPOINT, bucket: env.R2_BUCKET_NAME },
+    'Creating S3 client for R2'
+  );
+
   return new S3Client({
     region: 'auto',
     endpoint: env.R2_ENDPOINT,
@@ -30,6 +36,16 @@ export async function uploadToR2(
 ): Promise<string> {
   const { key, file, metadata } = options;
 
+  logger.debug(
+    {
+      key,
+      fileSize: file.size,
+      contentType: file.type,
+      metadata,
+    },
+    'Starting R2 upload'
+  );
+
   // Convert File to ArrayBuffer for upload
   const arrayBuffer = await file.arrayBuffer();
 
@@ -43,6 +59,9 @@ export async function uploadToR2(
 
   await s3Client.send(command);
 
+  const publicUrl = `${env.R2_PUBLIC_URL}/${key}`;
+  logger.info({ key, publicUrl }, 'Successfully uploaded to R2');
+
   // Return the public URL
-  return `${env.R2_PUBLIC_URL}/${key}`;
+  return publicUrl;
 }
