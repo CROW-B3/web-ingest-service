@@ -1,5 +1,6 @@
 import { drizzle } from 'drizzle-orm/d1';
 import { screenshots } from '../db/schema';
+import { logger } from '../utils/logger';
 import { createS3Client, uploadToR2 } from '../utils/s3';
 
 /**
@@ -10,12 +11,14 @@ export async function handleScreenshotUpload(
   env: Env
 ): Promise<Response> {
   try {
+    logger.info('Starting screenshot upload processing');
     // Parse FormData
     const formData = await request.formData();
 
     // Get screenshot file
     const screenshot = formData.get('screenshot');
     if (!screenshot || !(screenshot instanceof File)) {
+      logger.warn('No screenshot file provided in request');
       return new Response(
         JSON.stringify({ success: false, error: 'No screenshot provided' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -38,6 +41,8 @@ export async function handleScreenshotUpload(
     // Generate R2 key with timestamp and filename
     const r2Key = `${env.R2_UPLOAD_PREFIX}/${timestamp}-${filename}`;
 
+    logger.debug({ r2Key, filename, size: screenshot.size }, 'Uploading to R2');
+
     // Initialize S3 client and upload to R2
     const s3Client = createS3Client(env);
     const r2Url = await uploadToR2(s3Client, env, {
@@ -50,6 +55,8 @@ export async function handleScreenshotUpload(
         site,
       },
     });
+
+    logger.info({ r2Key, r2Url }, 'Successfully uploaded to R2');
 
     // Create date string (YYYY-MM-DD)
     const dateObj = new Date(Number.parseInt(timestamp));
@@ -74,14 +81,17 @@ export async function handleScreenshotUpload(
       date,
     });
 
-    console.warn('Screenshot uploaded successfully:', {
-      r2Key,
-      filename,
-      size: screenshot.size,
-      timestamp,
-      site,
-      date,
-    });
+    logger.info(
+      {
+        r2Key,
+        filename,
+        size: screenshot.size,
+        timestamp,
+        site,
+        date,
+      },
+      'Screenshot metadata saved to D1'
+    );
 
     return new Response(
       JSON.stringify({
@@ -100,7 +110,10 @@ export async function handleScreenshotUpload(
       }
     );
   } catch (error) {
-    console.error('Error uploading screenshot:', error);
+    logger.error(
+      error instanceof Error ? error : new Error(String(error)),
+      'Error uploading screenshot'
+    );
     return new Response(
       JSON.stringify({
         success: false,
