@@ -12,7 +12,8 @@
     "prepare": "husky",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
-    "format": "bun prettier src/ --write"
+    "format": "bun prettier src/ --write",
+    "studio": "drizzle-kit studio"
   },
   "packageManager": "bun@1.3.3",
   "dependencies": {
