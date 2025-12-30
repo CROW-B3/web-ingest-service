@@ -3,6 +3,9 @@
  */
 
 import { DurableObject } from 'cloudflare:workers';
+import { handleBatch } from './handlers/batch';
+import { handleSessionEnd, handleSessionStart } from './handlers/session';
+import { handleTrack } from './handlers/track';
 import { corsHeaders, handleCorsPreFlight } from './middleware/cors';
 import { logger } from './utils/logger';
 
@@ -66,6 +69,7 @@ export default {
         JSON.stringify({
           status: 'ok',
           service: 'web-ingest-worker',
+          version: '1.0.0',
         }),
         {
           status: 200,
@@ -74,8 +78,31 @@ export default {
       );
     }
 
+    // Route: POST /track - Single event tracking
+    if (pathname === '/track' && method === 'POST') {
+      return handleTrack(request, env);
+    }
+
+    // Route: POST /batch - Batch event tracking
+    if (pathname === '/batch' && method === 'POST') {
+      return handleBatch(request, env);
+    }
+
+    // Route: POST /session/start - Start a new session
+    if (pathname === '/session/start' && method === 'POST') {
+      return handleSessionStart(request, env);
+    }
+
+    // Route: POST /session/end - End a session
+    if (pathname === '/session/end' && method === 'POST') {
+      return handleSessionEnd(request, env);
+    }
+
     // 404 for unknown routes
     logger.warn({ method, pathname }, 'Route not found');
-    return new Response('Not Found', { status: 404, headers: corsHeaders });
+    return new Response(JSON.stringify({ error: 'Not Found' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    });
   },
 } satisfies ExportedHandler<Env>;

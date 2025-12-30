@@ -34,13 +34,15 @@
     {
       "binding": "DB",
       "database_name": "crow-web-ingest-service-db-dev",
-      "database_id": "e73411e4-8c1b-48a6-ad20-2bd74249d29a"
+      "database_id": "e73411e4-8c1b-48a6-ad20-2bd74249d29a",
+      "remote": true
     }
   ],
   "r2_buckets": [
     {
       "binding": "R2_BUCKET",
-      "bucket_name": "crow-web-ingest-service-store-dev"
+      "bucket_name": "crow-web-ingest-service-store-dev",
+      "remote": true
     }
   ],
   "vars": {
@@ -108,13 +110,15 @@
         {
           "binding": "DB",
           "database_name": "crow-web-ingest-service-db",
-          "database_id": "58b32c68-d807-4b42-9075-08a12078bdf7"
+          "database_id": "58b32c68-d807-4b42-9075-08a12078bdf7",
+          "remote": true
         }
       ],
       "r2_buckets": [
         {
           "binding": "R2_BUCKET",
-          "bucket_name": "crow-web-ingest-service-store"
+          "bucket_name": "crow-web-ingest-service-store",
+          "remote": true
         }
       ],
       "vars": {
