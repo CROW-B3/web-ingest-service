@@ -19,9 +19,30 @@ export const screenSizeSchema = z.object({
 
 /**
  * Event schema for individual events
+ * Supports both website-hook-sdk (lowercase) and web-tracker (snake_case) event types
  */
 export const eventSchema = z.object({
-  type: z.enum(['pageview', 'click', 'form', 'custom', 'error']),
+  type: z.enum([
+    // website-hook-sdk event types (backward compatibility)
+    'pageview',
+    'click',
+    'form',
+    'custom',
+    'error',
+    // web-tracker event types
+    'page_view',
+    'route_change',
+    'product_impression',
+    'hover_start',
+    'hover_end',
+    'scroll',
+    'scroll_depth',
+    'mousemove',
+    'visibility_change',
+    'navigation_back',
+    'history_change',
+    'unhandled_rejection',
+  ]),
   timestamp: z.number(),
   url: z.string().url(),
   referrer: z.string().optional(),
@@ -60,6 +81,7 @@ export const batchRequestSchema = z.object({
   sessionId: z.string(),
   events: z.array(eventSchema).min(1).max(100), // Limit batch size
   user: userSchema.optional(),
+  idempotencyKey: z.string().optional(), // Optional idempotency key to prevent duplicate processing
 });
 
 /**
