@@ -107,10 +107,46 @@ export const events = sqliteTable(
       .default(sql`(unixepoch())`),
   },
   table => ({
+    // Single column indexes
     projectIdx: index('idx_events_project').on(table.projectId),
     sessionIdx: index('idx_events_session').on(table.sessionId),
     typeIdx: index('idx_events_type').on(table.type),
     timestampIdx: index('idx_events_timestamp').on(table.timestamp),
+    // Composite indexes for common query patterns
+    projectTimestampIdx: index('idx_events_project_timestamp').on(
+      table.projectId,
+      table.timestamp
+    ),
+    sessionTimestampIdx: index('idx_events_session_timestamp').on(
+      table.sessionId,
+      table.timestamp
+    ),
+    typeTimestampIdx: index('idx_events_type_timestamp').on(
+      table.type,
+      table.timestamp
+    ),
+    userIdx: index('idx_events_user').on(table.userId),
+  })
+);
+
+/**
+ * Idempotency keys table - prevents duplicate batch processing
+ */
+export const idempotencyKeys = sqliteTable(
+  'idempotency_keys',
+  {
+    key: text('key').primaryKey(), // The idempotency key from the request
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id),
+    processedAt: integer('processed_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    eventCount: integer('event_count').notNull(), // Number of events in the batch
+  },
+  table => ({
+    projectIdx: index('idx_idempotency_project').on(table.projectId),
+    processedIdx: index('idx_idempotency_processed').on(table.processedAt),
   })
 );
 
@@ -123,3 +159,5 @@ export type Session = typeof sessions.$inferSelect;
 export type NewSession = typeof sessions.$inferInsert;
 export type Event = typeof events.$inferSelect;
 export type NewEvent = typeof events.$inferInsert;
+export type IdempotencyKey = typeof idempotencyKeys.$inferSelect;
+export type NewIdempotencyKey = typeof idempotencyKeys.$inferInsert;
