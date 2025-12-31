@@ -19,30 +19,10 @@ export const screenSizeSchema = z.object({
 
 /**
  * Event schema for individual events
- * Supports both website-hook-sdk (lowercase) and web-tracker (snake_case) event types
+ * Supports website-hook-sdk event types
  */
 export const eventSchema = z.object({
-  type: z.enum([
-    // website-hook-sdk event types (backward compatibility)
-    'pageview',
-    'click',
-    'form',
-    'custom',
-    'error',
-    // web-tracker event types
-    'page_view',
-    'route_change',
-    'product_impression',
-    'hover_start',
-    'hover_end',
-    'scroll',
-    'scroll_depth',
-    'mousemove',
-    'visibility_change',
-    'navigation_back',
-    'history_change',
-    'unhandled_rejection',
-  ]),
+  type: z.enum(['pageview', 'click', 'form', 'custom', 'error']),
   timestamp: z.number(),
   url: z.string().url(),
   referrer: z.string().optional(),
