@@ -8,7 +8,6 @@ import {
   users,
 } from '../db/schema';
 import { corsHeaders } from '../middleware/cors';
-import { getBotName, isBot } from '../utils/bot-detection';
 import { logger } from '../utils/logger';
 import {
   validateBatchSize,
@@ -160,38 +159,6 @@ export async function handleBatch(
           headers: { 'Content-Type': 'application/json', ...corsHeaders },
         }
       );
-    }
-
-    // Detect bot traffic based on user agent
-    const userAgent =
-      session.userAgent || request.headers.get('user-agent') || undefined;
-    const botDetected = isBot(userAgent);
-
-    if (botDetected) {
-      const botName = getBotName(userAgent);
-      logger.info(
-        {
-          sessionId: validatedData.sessionId,
-          botName,
-          userAgent,
-        },
-        'Bot traffic detected'
-      );
-
-      // Optional: Reject bot traffic (disabled by default to allow SEO monitoring)
-      // Uncomment the following to reject bot requests:
-      /*
-      return new Response(
-        JSON.stringify({
-          success: false,
-          errors: ['Bot traffic is not tracked'],
-        }),
-        {
-          status: 403,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        }
-      );
-      */
     }
 
     // Get or create user
