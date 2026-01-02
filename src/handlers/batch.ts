@@ -15,11 +15,6 @@ import {
   validateEventData,
   validateRequestSize,
 } from '../utils/payload-limits';
-import {
-  containsPII,
-  sanitizeEventData,
-  sanitizeUrl,
-} from '../utils/pii-sanitization';
 import { validateTimestamp } from '../utils/timestamp-validation';
 import { batchRequestSchema } from '../validation/schemas';
 
@@ -282,25 +277,6 @@ export async function handleBatch(
           );
         }
 
-        // Sanitize event data to remove PII
-        const sanitizedData = sanitizeEventData(eventDataValidation.data);
-        const sanitizedUrl = sanitizeUrl(event.url);
-        const sanitizedReferrer = event.referrer
-          ? sanitizeUrl(event.referrer)
-          : undefined;
-
-        // Log if PII was detected
-        if (containsPII(event.data)) {
-          logger.warn(
-            {
-              index: i,
-              eventType: event.type,
-              sessionId: validatedData.sessionId,
-            },
-            'PII detected in event data and sanitized'
-          );
-        }
-
         const eventId = generateId('evt');
         await db
           .insert(events)
@@ -311,10 +287,10 @@ export async function handleBatch(
             userId,
             anonymousId: validatedData.user?.anonymousId || 'unknown',
             type: event.type,
-            url: sanitizedUrl,
-            referrer: sanitizedReferrer,
+            url: event.url,
+            referrer: event.referrer,
             timestamp: new Date(finalTimestamp),
-            data: sanitizedData,
+            data: eventDataValidation.data,
           })
           .run();
 
