@@ -49,16 +49,6 @@ export async function handleBatch(
       );
     }
 
-    // Log warnings if any
-    if (requestSizeValidation.warnings.length > 0) {
-      logger.warn(
-        {
-          warnings: requestSizeValidation.warnings,
-        },
-        'Request size warnings'
-      );
-    }
-
     const validatedData = batchRequestSchema.parse(body);
 
     // Validate batch size
@@ -231,17 +221,23 @@ export async function handleBatch(
           ? event.timestamp
           : timestampValidation.adjustedTimestamp || Date.now();
 
-        // Validate and truncate event data if needed
+        // Validate event data size
         const eventDataValidation = validateEventData(event.data);
-        if (eventDataValidation.warnings.length > 0) {
+        if (!eventDataValidation.isValid) {
           logger.warn(
             {
               index: i,
               eventType: event.type,
-              warnings: eventDataValidation.warnings,
+              errors: eventDataValidation.errors,
             },
-            'Event data size warnings'
+            'Event data validation failed'
           );
+          failed++;
+          errors.push({
+            index: i,
+            error: eventDataValidation.errors.join(', '),
+          });
+          continue; // Skip this event
         }
 
         const eventId = generateId('evt');
@@ -257,7 +253,7 @@ export async function handleBatch(
             url: event.url,
             referrer: event.referrer,
             timestamp: new Date(finalTimestamp),
-            data: eventDataValidation.data,
+            data: event.data,
           })
           .run();
 
