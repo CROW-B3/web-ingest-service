@@ -9,15 +9,6 @@ export interface TimestampValidationResult {
   adjustedTimestamp?: number;
 }
 
-/**
- * Validate a client timestamp and detect clock skew
- * @param timestamp - The timestamp to validate (in milliseconds)
- * @param options - Validation options
- * @param options.maxFutureDrift - Max milliseconds in the future (default: 60s)
- * @param options.maxPastAge - Max age in milliseconds (default: 24 hours)
- * @param options.autoCorrect - Auto-correct to server time if invalid (default: false)
- * @returns Validation result with isValid flag and optional reason
- */
 export function validateTimestamp(
   timestamp: number,
   options: {
@@ -70,11 +61,6 @@ export function validateTimestamp(
   };
 }
 
-/**
- * Validate a batch of timestamps and return statistics
- * @param timestamps - Array of timestamps to validate
- * @returns Validation statistics
- */
 export function validateTimestampBatch(timestamps: number[]): {
   totalCount: number;
   validCount: number;

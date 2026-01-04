@@ -31,8 +31,6 @@ export const DEFAULT_PAYLOAD_LIMITS: PayloadLimits = {
  */
 function getObjectSizeBytes(obj: any): number {
   const jsonStr = JSON.stringify(obj);
-  // UTF-8 encoding: most chars are 1 byte, some are 2-4 bytes
-  // Use TextEncoder for accurate byte count
   return new TextEncoder().encode(jsonStr).length;
 }
 
