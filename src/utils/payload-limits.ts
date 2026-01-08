@@ -5,7 +5,6 @@
 
 export interface PayloadLimits {
   maxRequestSizeBytes: number; // Max total request size (default: 1MB)
-  maxEventDataSizeBytes: number; // Max size of event.data JSON (default: 100KB)
   maxEventsPerBatch: number; // Max events in a batch (default: 100)
 }
 
@@ -19,7 +18,6 @@ export interface ValidationResult {
  */
 export const DEFAULT_PAYLOAD_LIMITS: PayloadLimits = {
   maxRequestSizeBytes: 1024 * 1024, // 1MB
-  maxEventDataSizeBytes: 100 * 1024, // 100KB
   maxEventsPerBatch: 100,
 };
 
@@ -50,41 +48,6 @@ export function validateRequestSize(
   if (requestSize > finalLimits.maxRequestSizeBytes) {
     errors.push(
       `Request size (${requestSize} bytes) exceeds maximum allowed (${finalLimits.maxRequestSizeBytes} bytes)`
-    );
-  }
-
-  return {
-    isValid: errors.length === 0,
-    errors,
-  };
-}
-
-/**
- * Validate event data size
- */
-export function validateEventData(
-  eventData: any,
-  limits: Partial<PayloadLimits> = {}
-): ValidationResult {
-  const finalLimits: PayloadLimits = {
-    ...DEFAULT_PAYLOAD_LIMITS,
-    ...limits,
-  };
-
-  const errors: string[] = [];
-
-  if (!eventData) {
-    return {
-      isValid: true,
-      errors: [],
-    };
-  }
-
-  const dataSize = getObjectSizeBytes(eventData);
-
-  if (dataSize > finalLimits.maxEventDataSizeBytes) {
-    errors.push(
-      `Event data size (${dataSize} bytes) exceeds maximum allowed (${finalLimits.maxEventDataSizeBytes} bytes)`
     );
   }
 

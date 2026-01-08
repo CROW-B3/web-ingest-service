@@ -34,11 +34,7 @@ export const users = sqliteTable(
     firstSeen: integer('first_seen', { mode: 'timestamp' })
       .notNull()
       .default(sql`(unixepoch())`),
-    lastSeen: integer('last_seen', { mode: 'timestamp' })
-      .notNull()
-      .default(sql`(unixepoch())`),
     sessionCount: integer('session_count').notNull().default(0),
-    eventCount: integer('event_count').notNull().default(0),
   },
   table => ({
     projectIdx: index('idx_users_project').on(table.projectId),
@@ -63,8 +59,6 @@ export const sessions = sqliteTable(
       .default(sql`(unixepoch())`),
     endedAt: integer('ended_at', { mode: 'timestamp' }),
     duration: integer('duration'), // in milliseconds
-    pageViews: integer('page_views').notNull().default(0),
-    interactions: integer('interactions').notNull().default(0),
     referrer: text('referrer'),
     initialUrl: text('initial_url'),
     userAgent: text('user_agent'),

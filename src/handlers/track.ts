@@ -71,15 +71,6 @@ export async function handleTrack(
 
       if (existingUser) {
         userId = existingUser.id;
-        // Update last seen and event count
-        await db
-          .update(users)
-          .set({
-            lastSeen: new Date(),
-            eventCount: existingUser.eventCount + 1,
-          })
-          .where(eq(users.id, existingUser.id))
-          .run();
       } else {
         userId = generateId('user');
         await db
@@ -89,7 +80,6 @@ export async function handleTrack(
             projectId: project.id,
             anonymousId: validatedData.user.anonymousId,
             traits: validatedData.user.traits || {},
-            eventCount: 1,
           })
           .run();
       }
@@ -112,25 +102,6 @@ export async function handleTrack(
         data: validatedData.event.data || {},
       })
       .run();
-
-    // Update session page views or interactions
-    if (validatedData.event.type === 'pageview') {
-      await db
-        .update(sessions)
-        .set({
-          pageViews: session.pageViews + 1,
-        })
-        .where(eq(sessions.id, validatedData.sessionId))
-        .run();
-    } else {
-      await db
-        .update(sessions)
-        .set({
-          interactions: session.interactions + 1,
-        })
-        .where(eq(sessions.id, validatedData.sessionId))
-        .run();
-    }
 
     logger.info({ eventId, type: validatedData.event.type }, 'Event tracked');
 
