@@ -1,12 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { createDbClient, generateId } from '../db/client';
-import {
-  events,
-  idempotencyKeys,
-  projects,
-  sessions,
-  users,
-} from '../db/schema';
+import { events, projects, sessions, users } from '../db/schema';
 import { corsHeaders } from '../middleware/cors';
 import { logger } from '../utils/logger';
 import {
@@ -99,35 +93,6 @@ export async function handleBatch(
       );
     }
 
-    // Check idempotency key to prevent duplicate processing
-    if (validatedData.idempotencyKey) {
-      const existingKey = await db
-        .select()
-        .from(idempotencyKeys)
-        .where(eq(idempotencyKeys.key, validatedData.idempotencyKey))
-        .get();
-
-      if (existingKey) {
-        logger.info(
-          { idempotencyKey: validatedData.idempotencyKey },
-          'Duplicate batch request detected (idempotency key already processed)'
-        );
-        // Return success response without processing (idempotent)
-        return new Response(
-          JSON.stringify({
-            success: true,
-            processed: existingKey.eventCount,
-            failed: 0,
-            duplicate: true, // Indicates this was a duplicate request
-          }),
-          {
-            status: 200,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders },
-          }
-        );
-      }
-    }
-
     // Check if session exists
     const session = await db
       .select()
@@ -207,27 +172,6 @@ export async function handleBatch(
           index: i,
           error: error instanceof Error ? error.message : 'Unknown error',
         });
-      }
-    }
-
-    // Store idempotency key to prevent duplicate processing
-    if (validatedData.idempotencyKey) {
-      try {
-        await db
-          .insert(idempotencyKeys)
-          .values({
-            key: validatedData.idempotencyKey,
-            projectId: project.id,
-            eventCount: processed,
-          })
-          .run();
-        logger.info(
-          { idempotencyKey: validatedData.idempotencyKey },
-          'Stored idempotency key'
-        );
-      } catch (error) {
-        // Log error but don't fail the request (events already processed)
-        logger.error({ error }, 'Failed to store idempotency key');
       }
     }
 

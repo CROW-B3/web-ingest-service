@@ -61,7 +61,6 @@ export const batchRequestSchema = z.object({
   sessionId: z.string(),
   events: z.array(eventSchema).min(1).max(100), // Limit batch size
   user: userSchema.optional(),
-  idempotencyKey: z.string().optional(), // Optional idempotency key to prevent duplicate processing
 });
 
 /**

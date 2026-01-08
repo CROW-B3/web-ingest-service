@@ -123,27 +123,6 @@ export const events = sqliteTable(
   })
 );
 
-/**
- * Idempotency keys table - prevents duplicate batch processing
- */
-export const idempotencyKeys = sqliteTable(
-  'idempotency_keys',
-  {
-    key: text('key').primaryKey(), // The idempotency key from the request
-    projectId: text('project_id')
-      .notNull()
-      .references(() => projects.id),
-    processedAt: integer('processed_at', { mode: 'timestamp' })
-      .notNull()
-      .default(sql`(unixepoch())`),
-    eventCount: integer('event_count').notNull(), // Number of events in the batch
-  },
-  table => ({
-    projectIdx: index('idx_idempotency_project').on(table.projectId),
-    processedIdx: index('idx_idempotency_processed').on(table.processedAt),
-  })
-);
-
 // Type exports for TypeScript
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
@@ -153,5 +132,3 @@ export type Session = typeof sessions.$inferSelect;
 export type NewSession = typeof sessions.$inferInsert;
 export type Event = typeof events.$inferSelect;
 export type NewEvent = typeof events.$inferInsert;
-export type IdempotencyKey = typeof idempotencyKeys.$inferSelect;
-export type NewIdempotencyKey = typeof idempotencyKeys.$inferInsert;
