@@ -58,11 +58,10 @@ export async function handleSessionStart(
 
     if (existingUser) {
       userId = existingUser.id;
-      // Update last seen and session count
+      // Update session count
       await db
         .update(users)
         .set({
-          lastSeen: new Date(),
           sessionCount: existingUser.sessionCount + 1,
         })
         .where(eq(users.id, existingUser.id))
@@ -201,8 +200,6 @@ export async function handleSessionEnd(
       .set({
         endedAt: new Date(),
         duration: validatedData.duration,
-        pageViews: validatedData.pageViews,
-        interactions: validatedData.interactions,
       })
       .where(eq(sessions.id, validatedData.sessionId))
       .run();

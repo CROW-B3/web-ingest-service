@@ -11,10 +11,8 @@ import { corsHeaders } from '../middleware/cors';
 import { logger } from '../utils/logger';
 import {
   validateBatchSize,
-  validateEventData,
   validateRequestSize,
 } from '../utils/payload-limits';
-import { validateTimestamp } from '../utils/timestamp-validation';
 import { batchRequestSchema } from '../validation/schemas';
 
 /**
@@ -162,15 +160,6 @@ export async function handleBatch(
 
       if (existingUser) {
         userId = existingUser.id;
-        // Update last seen and event count
-        await db
-          .update(users)
-          .set({
-            lastSeen: new Date(),
-            eventCount: existingUser.eventCount + validatedData.events.length,
-          })
-          .where(eq(users.id, existingUser.id))
-          .run();
       } else {
         userId = generateId('user');
         await db
@@ -180,7 +169,6 @@ export async function handleBatch(
             projectId: project.id,
             anonymousId: validatedData.user.anonymousId,
             traits: validatedData.user.traits || {},
-            eventCount: validatedData.events.length,
           })
           .run();
       }
@@ -191,55 +179,9 @@ export async function handleBatch(
     let failed = 0;
     const errors: Array<{ index: number; error: string }> = [];
 
-    let pageViewCount = 0;
-    let interactionCount = 0;
-
     for (let i = 0; i < validatedData.events.length; i++) {
       const event = validatedData.events[i];
       try {
-        // Validate timestamp to detect client clock skew
-        const timestampValidation = validateTimestamp(event.timestamp, {
-          maxFutureDrift: 60 * 1000, // 60 seconds
-          maxPastAge: 24 * 60 * 60 * 1000, // 24 hours
-          autoCorrect: true, // Auto-correct invalid timestamps to server time
-        });
-
-        if (!timestampValidation.isValid) {
-          logger.warn(
-            {
-              index: i,
-              eventType: event.type,
-              clientTimestamp: event.timestamp,
-              reason: timestampValidation.reason,
-            },
-            'Invalid event timestamp detected'
-          );
-        }
-
-        // Use adjusted timestamp if validation failed and autoCorrect is enabled
-        const finalTimestamp = timestampValidation.isValid
-          ? event.timestamp
-          : timestampValidation.adjustedTimestamp || Date.now();
-
-        // Validate event data size
-        const eventDataValidation = validateEventData(event.data);
-        if (!eventDataValidation.isValid) {
-          logger.warn(
-            {
-              index: i,
-              eventType: event.type,
-              errors: eventDataValidation.errors,
-            },
-            'Event data validation failed'
-          );
-          failed++;
-          errors.push({
-            index: i,
-            error: eventDataValidation.errors.join(', '),
-          });
-          continue; // Skip this event
-        }
-
         const eventId = generateId('evt');
         await db
           .insert(events)
@@ -252,16 +194,10 @@ export async function handleBatch(
             type: event.type,
             url: event.url,
             referrer: event.referrer,
-            timestamp: new Date(finalTimestamp),
+            timestamp: new Date(event.timestamp),
             data: event.data,
           })
           .run();
-
-        if (event.type === 'pageview') {
-          pageViewCount++;
-        } else {
-          interactionCount++;
-        }
 
         processed++;
       } catch (error) {
@@ -273,16 +209,6 @@ export async function handleBatch(
         });
       }
     }
-
-    // Update session counts
-    await db
-      .update(sessions)
-      .set({
-        pageViews: session.pageViews + pageViewCount,
-        interactions: session.interactions + interactionCount,
-      })
-      .where(eq(sessions.id, validatedData.sessionId))
-      .run();
 
     // Store idempotency key to prevent duplicate processing
     if (validatedData.idempotencyKey) {
