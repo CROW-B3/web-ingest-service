@@ -41,12 +41,12 @@
   "logpush": true,
   "placement": { "mode": "smart" },
   "routes": [
-    { "pattern": "internal.ingest.crowai.dev", "custom_domain": true }
+    { "pattern": "internal.ingest-worker.crowai.dev", "custom_domain": true }
   ],
   "env": {
     "dev": {
       "routes": [
-        { "pattern": "dev.internal.ingest.crowai.dev", "custom_domain": true }
+        { "pattern": "dev.internal.ingest-worker.crowai.dev", "custom_domain": true }
       ],
       "migrations": [
         {
