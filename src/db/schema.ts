@@ -12,9 +12,6 @@ export const projects = sqliteTable('projects', {
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
-  settings: text('settings', { mode: 'json' })
-    .notNull()
-    .default(sql`'{}'`),
 });
 
 /**
@@ -28,9 +25,6 @@ export const users = sqliteTable(
       .notNull()
       .references(() => projects.id),
     anonymousId: text('anonymous_id').notNull(),
-    traits: text('traits', { mode: 'json' })
-      .notNull()
-      .default(sql`'{}'`),
     firstSeen: integer('first_seen', { mode: 'timestamp' })
       .notNull()
       .default(sql`(unixepoch())`),
@@ -64,7 +58,6 @@ export const sessions = sqliteTable(
     userAgent: text('user_agent'),
     ipAddress: text('ip_address'),
     country: text('country'),
-    city: text('city'),
     deviceType: text('device_type'),
     browser: text('browser'),
     os: text('os'),
@@ -93,7 +86,6 @@ export const events = sqliteTable(
     anonymousId: text('anonymous_id').notNull(),
     type: text('type').notNull(), // pageview, click, form, custom, etc.
     url: text('url').notNull(),
-    referrer: text('referrer'),
     timestamp: integer('timestamp', { mode: 'timestamp' }).notNull(),
     data: text('data', { mode: 'json' }), // JSON event data
     createdAt: integer('created_at', { mode: 'timestamp' })

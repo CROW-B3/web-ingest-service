@@ -79,7 +79,6 @@ export async function handleTrack(
             id: userId,
             projectId: project.id,
             anonymousId: validatedData.user.anonymousId,
-            traits: validatedData.user.traits || {},
           })
           .run();
       }
@@ -97,7 +96,6 @@ export async function handleTrack(
         anonymousId: validatedData.user?.anonymousId || 'unknown',
         type: validatedData.event.type,
         url: validatedData.event.url,
-        referrer: validatedData.event.referrer,
         timestamp: new Date(validatedData.event.timestamp),
         data: validatedData.event.data || {},
       })

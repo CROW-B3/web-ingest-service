@@ -74,7 +74,6 @@ export async function handleSessionStart(
           id: userId,
           projectId: project.id,
           anonymousId: validatedData.user.anonymousId,
-          traits: validatedData.user.traits || {},
           sessionCount: 1,
         })
         .run();

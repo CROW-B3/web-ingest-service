@@ -133,7 +133,6 @@ export async function handleBatch(
             id: userId,
             projectId: project.id,
             anonymousId: validatedData.user.anonymousId,
-            traits: validatedData.user.traits || {},
           })
           .run();
       }
@@ -158,7 +157,6 @@ export async function handleBatch(
             anonymousId: validatedData.user?.anonymousId || 'unknown',
             type: event.type,
             url: event.url,
-            referrer: event.referrer,
             timestamp: new Date(event.timestamp),
             data: event.data,
           })
