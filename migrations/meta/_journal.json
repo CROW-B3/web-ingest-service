@@ -29,6 +29,20 @@
       "when": 1767869348013,
       "tag": "0003_lyrical_lyja",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1767940273953,
+      "tag": "0004_flaky_mulholland_black",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1767941330822,
+      "tag": "0005_tough_firebrand",
+      "breakpoints": true
     }
   ]
 }

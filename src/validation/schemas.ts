@@ -6,7 +6,6 @@ import { z } from 'zod';
 export const userSchema = z.object({
   id: z.string().optional(),
   anonymousId: z.string(),
-  traits: z.record(z.string(), z.any()).optional(),
 });
 
 /**
@@ -25,7 +24,6 @@ export const eventSchema = z.object({
   type: z.enum(['pageview', 'click', 'form', 'custom', 'error']),
   timestamp: z.number(),
   url: z.string().url(),
-  referrer: z.string().optional(),
   data: z.record(z.string(), z.any()).optional(),
   userAgent: z.string().optional(),
   screenSize: screenSizeSchema.optional(),
