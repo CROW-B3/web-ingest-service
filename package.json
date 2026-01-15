@@ -5,8 +5,7 @@
   "scripts": {
     "deploy": "wrangler deploy --env=\"\"",
     "deploy:dev": "wrangler deploy --env dev",
-    "dev": "wrangler dev",
-    "dev:logs": "wrangler dev | pino-pretty",
+    "dev": "wrangler dev | pino-pretty",
     "start": "wrangler dev",
     "cf-typegen": "wrangler types",
     "prepare": "husky",
