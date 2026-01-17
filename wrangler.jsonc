@@ -68,7 +68,30 @@
     { "pattern": "internal.ingest-worker.crowai.dev", "custom_domain": true }
   ],
   "env": {
+    "local": {
+      "name": "crow-web-ingest-worker-local",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "crow-web-ingest-service-db-local",
+          "database_id": "e73411e4-8c1b-48a6-ad20-2bd74249d29a"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "R2_BUCKET",
+          "bucket_name": "crow-web-ingest-service-store-local"
+        }
+      ],
+      "vars": {
+        "R2_ENDPOINT": "https://8f0203259905d8923687286c84921e6c.r2.cloudflarestorage.com",
+        "R2_BUCKET_NAME": "crow-web-ingest-service-store-local",
+        "R2_PUBLIC_URL": "https://pub-e64a25eb7e0f46fab0acd0c47eb44194.r2.dev",
+        "R2_UPLOAD_PREFIX": "screenshots"
+      }
+    },
     "dev": {
+      "name": "crow-web-ingest-worker-dev",
       "routes": [
         { "pattern": "dev.internal.ingest-worker.crowai.dev", "custom_domain": true }
       ],
