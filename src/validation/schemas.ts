@@ -1,25 +1,15 @@
 import { z } from 'zod';
 
-/**
- * User schema for tracking user information
- */
 export const userSchema = z.object({
   id: z.string().optional(),
   anonymousId: z.string(),
 });
 
-/**
- * Screen size schema
- */
 export const screenSizeSchema = z.object({
   width: z.number(),
   height: z.number(),
 });
 
-/**
- * Event schema for individual events
- * Supports website-hook-sdk event types
- */
 export const eventSchema = z.object({
   type: z.enum(['pageview', 'click', 'form', 'custom', 'error']),
   timestamp: z.number(),
@@ -29,9 +19,6 @@ export const eventSchema = z.object({
   screenSize: screenSizeSchema.optional(),
 });
 
-/**
- * Context schema for session information
- */
 export const contextSchema = z.object({
   url: z.string().url(),
   referrer: z.string().optional(),
@@ -41,9 +28,6 @@ export const contextSchema = z.object({
   locale: z.string(),
 });
 
-/**
- * POST /track request schema
- */
 export const trackRequestSchema = z.object({
   projectId: z.string(),
   sessionId: z.string(),
@@ -51,19 +35,15 @@ export const trackRequestSchema = z.object({
   user: userSchema.optional(),
 });
 
-/**
- * POST /batch request schema
- */
+const maximumEventsPerBatchRequest = 100;
+
 export const batchRequestSchema = z.object({
   projectId: z.string(),
   sessionId: z.string(),
-  events: z.array(eventSchema).min(1).max(100), // Limit batch size
+  events: z.array(eventSchema).min(1).max(maximumEventsPerBatchRequest),
   user: userSchema.optional(),
 });
 
-/**
- * POST /session/start request schema
- */
 export const sessionStartRequestSchema = z.object({
   projectId: z.string(),
   sessionId: z.string(),
@@ -71,9 +51,6 @@ export const sessionStartRequestSchema = z.object({
   context: contextSchema,
 });
 
-/**
- * POST /session/end request schema
- */
 export const sessionEndRequestSchema = z.object({
   projectId: z.string(),
   sessionId: z.string(),
@@ -82,7 +59,6 @@ export const sessionEndRequestSchema = z.object({
   interactions: z.number(),
 });
 
-// Type exports for TypeScript
 export type User = z.infer<typeof userSchema>;
 export type ScreenSize = z.infer<typeof screenSizeSchema>;
 export type Event = z.infer<typeof eventSchema>;

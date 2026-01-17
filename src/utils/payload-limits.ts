@@ -1,11 +1,6 @@
-/**
- * Payload Size Limits Utility
- * Enforces size limits on event payloads to prevent abuse and ensure performance
- */
-
 export interface PayloadLimits {
-  maxRequestSizeBytes: number; // Max total request size (default: 1MB)
-  maxEventsPerBatch: number; // Max events in a batch (default: 100)
+  maxRequestSizeBytes: number;
+  maxEventsPerBatch: number;
 }
 
 export interface ValidationResult {
@@ -13,25 +8,27 @@ export interface ValidationResult {
   errors: string[];
 }
 
-/**
- * Default payload limits
- */
+const oneMegabyteInBytes = 1024 * 1024;
+const defaultMaxEventsPerBatch = 100;
+
 export const DEFAULT_PAYLOAD_LIMITS: PayloadLimits = {
-  maxRequestSizeBytes: 1024 * 1024, // 1MB
-  maxEventsPerBatch: 100,
+  maxRequestSizeBytes: oneMegabyteInBytes,
+  maxEventsPerBatch: defaultMaxEventsPerBatch,
 };
 
-/**
- * Get size of an object in bytes (UTF-8 encoding)
- */
-function getObjectSizeBytes(obj: any): number {
-  const jsonStr = JSON.stringify(obj);
-  return new TextEncoder().encode(jsonStr).length;
+function calculateObjectSizeInBytes(object: any): number {
+  const jsonString = JSON.stringify(object);
+  return new TextEncoder().encode(jsonString).length;
 }
 
-/**
- * Validate request payload size
- */
+function createValidationError(
+  actualValue: number,
+  maxValue: number,
+  unit: string
+): string {
+  return `${unit} (${actualValue}) exceeds maximum allowed (${maxValue})`;
+}
+
 export function validateRequestSize(
   requestBody: any,
   limits: Partial<PayloadLimits> = {}
@@ -41,25 +38,26 @@ export function validateRequestSize(
     ...limits,
   };
 
-  const errors: string[] = [];
+  const requestSizeInBytes = calculateObjectSizeInBytes(requestBody);
+  const isRequestSizeValid =
+    requestSizeInBytes <= finalLimits.maxRequestSizeBytes;
 
-  const requestSize = getObjectSizeBytes(requestBody);
-
-  if (requestSize > finalLimits.maxRequestSizeBytes) {
-    errors.push(
-      `Request size (${requestSize} bytes) exceeds maximum allowed (${finalLimits.maxRequestSizeBytes} bytes)`
-    );
+  if (isRequestSizeValid) {
+    return { isValid: true, errors: [] };
   }
 
+  const errorMessage = createValidationError(
+    requestSizeInBytes,
+    finalLimits.maxRequestSizeBytes,
+    'Request size (bytes)'
+  );
+
   return {
-    isValid: errors.length === 0,
-    errors,
+    isValid: false,
+    errors: [errorMessage],
   };
 }
 
-/**
- * Validate batch size (number of events)
- */
 export function validateBatchSize(
   eventCount: number,
   limits: Partial<PayloadLimits> = {}
@@ -69,16 +67,20 @@ export function validateBatchSize(
     ...limits,
   };
 
-  const errors: string[] = [];
+  const isBatchSizeValid = eventCount <= finalLimits.maxEventsPerBatch;
 
-  if (eventCount > finalLimits.maxEventsPerBatch) {
-    errors.push(
-      `Batch size (${eventCount} events) exceeds maximum allowed (${finalLimits.maxEventsPerBatch} events)`
-    );
+  if (isBatchSizeValid) {
+    return { isValid: true, errors: [] };
   }
 
+  const errorMessage = createValidationError(
+    eventCount,
+    finalLimits.maxEventsPerBatch,
+    'Batch size (events)'
+  );
+
   return {
-    isValid: errors.length === 0,
-    errors,
+    isValid: false,
+    errors: [errorMessage],
   };
 }

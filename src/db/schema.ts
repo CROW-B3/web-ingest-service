@@ -1,9 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
-/**
- * Projects table - stores project configurations
- */
 export const projects = sqliteTable('projects', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -14,9 +11,6 @@ export const projects = sqliteTable('projects', {
     .default(sql`(unixepoch())`),
 });
 
-/**
- * Users table - stores user information
- */
 export const users = sqliteTable(
   'users',
   {
@@ -36,9 +30,6 @@ export const users = sqliteTable(
   })
 );
 
-/**
- * Sessions table - stores user session data
- */
 export const sessions = sqliteTable(
   'sessions',
   {
@@ -52,7 +43,7 @@ export const sessions = sqliteTable(
       .notNull()
       .default(sql`(unixepoch())`),
     endedAt: integer('ended_at', { mode: 'timestamp' }),
-    duration: integer('duration'), // in milliseconds
+    durationInMilliseconds: integer('duration'),
     referrer: text('referrer'),
     initialUrl: text('initial_url'),
     userAgent: text('user_agent'),
@@ -60,7 +51,7 @@ export const sessions = sqliteTable(
     country: text('country'),
     deviceType: text('device_type'),
     browser: text('browser'),
-    os: text('os'),
+    operatingSystem: text('os'),
   },
   table => ({
     projectIdx: index('idx_sessions_project').on(table.projectId),
@@ -69,9 +60,6 @@ export const sessions = sqliteTable(
   })
 );
 
-/**
- * Events table - stores all captured events
- */
 export const events = sqliteTable(
   'events',
   {
@@ -84,21 +72,19 @@ export const events = sqliteTable(
       .references(() => sessions.id),
     userId: text('user_id').references(() => users.id),
     anonymousId: text('anonymous_id').notNull(),
-    type: text('type').notNull(), // pageview, click, form, custom, etc.
+    type: text('type').notNull(),
     url: text('url').notNull(),
     timestamp: integer('timestamp', { mode: 'timestamp' }).notNull(),
-    data: text('data', { mode: 'json' }), // JSON event data
+    data: text('data', { mode: 'json' }),
     createdAt: integer('created_at', { mode: 'timestamp' })
       .notNull()
       .default(sql`(unixepoch())`),
   },
   table => ({
-    // Single column indexes
     projectIdx: index('idx_events_project').on(table.projectId),
     sessionIdx: index('idx_events_session').on(table.sessionId),
     typeIdx: index('idx_events_type').on(table.type),
     timestampIdx: index('idx_events_timestamp').on(table.timestamp),
-    // Composite indexes for common query patterns
     projectTimestampIdx: index('idx_events_project_timestamp').on(
       table.projectId,
       table.timestamp
@@ -115,7 +101,6 @@ export const events = sqliteTable(
   })
 );
 
-// Type exports for TypeScript
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type User = typeof users.$inferSelect;
