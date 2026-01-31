@@ -43,6 +43,13 @@
       "when": 1767941330822,
       "tag": "0005_tough_firebrand",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1738346400000,
+      "tag": "0006_session_based_tracking",
+      "breakpoints": true
     }
   ]
 }
