@@ -1,8 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
-import { createDatabaseClient } from './db/client';
-import { events, sessions } from './db/schema';
 import { handleBatch } from './handlers/batch';
 import { handleTrack } from './handlers/track';
+import { handleGetSessionEvents } from './handlers/events';
 import { corsHeaders, handleCorsPreFlight } from './middleware/cors';
 import { logger } from './utils/logger';
 
@@ -14,7 +13,7 @@ interface SessionState {
   metadata?: Record<string, any>;
 }
 
-const SESSION_INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour
+const SESSION_INACTIVITY_TIMEOUT_MS = 1 * 5 * 1000; // 1 hour
 
 export interface Event {
   id: string;
@@ -57,19 +56,7 @@ export class CrowWebSession extends DurableObject<Env> {
     // Initialize SQLite schema for this DO
     const sql = this.ctx.storage.sql;
     try {
-      await sql.exec(`
-        CREATE TABLE IF NOT EXISTS events (
-          id TEXT PRIMARY KEY,
-          type TEXT NOT NULL,
-          timestamp INTEGER NOT NULL,
-          url TEXT NOT NULL,
-          data TEXT,
-          userAgent TEXT,
-          screenWidth INTEGER,
-          screenHeight INTEGER,
-          createdAt INTEGER DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+      await sql.exec('CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, type TEXT NOT NULL, timestamp INTEGER NOT NULL, url TEXT NOT NULL, data TEXT, userAgent TEXT, screenWidth INTEGER, screenHeight INTEGER, createdAt INTEGER DEFAULT CURRENT_TIMESTAMP)');
     } catch (error) {
       logger.warn(
         { error },
@@ -86,6 +73,11 @@ export class CrowWebSession extends DurableObject<Env> {
     return newSession;
   }
 
+  private escapeQuotes(value: string | null): string {
+    if (value === null || value === undefined) return 'NULL';
+    return `'${String(value).replace(/'/g, "''")}'`;
+  }
+
   private async insertEventToLocalStorage(event: Event): Promise<void> {
     const sql = this.ctx.storage.sql;
     const eventData = {
@@ -99,22 +91,9 @@ export class CrowWebSession extends DurableObject<Env> {
       screenHeight: event.screenSize?.height || null,
     };
 
-    await sql.exec(
-      `
-      INSERT INTO events (id, type, timestamp, url, data, userAgent, screenWidth, screenHeight)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `,
-      [
-        eventData.id,
-        eventData.type,
-        eventData.timestamp,
-        eventData.url,
-        eventData.data,
-        eventData.userAgent,
-        eventData.screenWidth,
-        eventData.screenHeight,
-      ]
-    );
+    const query = `INSERT INTO events (id, type, timestamp, url, data, userAgent, screenWidth, screenHeight) VALUES (${this.escapeQuotes(eventData.id)}, ${this.escapeQuotes(eventData.type)}, ${eventData.timestamp}, ${this.escapeQuotes(eventData.url)}, ${this.escapeQuotes(eventData.data)}, ${this.escapeQuotes(eventData.userAgent)}, ${eventData.screenWidth}, ${eventData.screenHeight})`;
+
+    await sql.exec(query);
   }
 
   private async queryStoredEvents(): Promise<Event[]> {
@@ -198,59 +177,33 @@ export class CrowWebSession extends DurableObject<Env> {
       if (timeSinceLastActivity >= SESSION_INACTIVITY_TIMEOUT_MS) {
         logger.info(
           { sessionId: session.sessionId, inactiveFor: timeSinceLastActivity },
-          'Session inactive, exporting to D1'
+          'Session inactive, sending to interaction service'
         );
 
         try {
-          // Get all events from SQLite
-          const storedEvents = await this.getStoredEvents();
-
-          // Save session and events to D1
-          const database = createDatabaseClient(this.env.DB);
-
-          // Insert session into D1 using Drizzle ORM
-          await database
-            .insert(sessions)
-            .values({
-              id: session.sessionId,
-              metadata: {
-                eventCount: session.eventCount,
-                lastActivityAt: session.lastActivityAt,
-              },
-            })
-            .run();
-
-          // Insert events into D1 using Drizzle ORM
-          for (const event of storedEvents) {
-            const eventId = `${session.sessionId}-${event.id}`;
-            await database
-              .insert(events)
-              .values({
-                id: eventId,
-                sessionId: session.sessionId,
-                type: event.type,
-                url: event.url,
-                timestamp: new Date(event.timestamp),
-                data: event.data || null,
-              })
-              .run();
-          }
-
-          // Send message to queue for processing
-          await this.env.WEB_SESSION_EXPORT.send({
-            sessionId: session.sessionId,
-            eventCount: storedEvents.length,
-            timestamp: Date.now(),
+          // Send session to core-interaction-service for processing
+          const response = await fetch('http://localhost:8008/sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sessionId: session.sessionId,
+              eventCount: session.eventCount,
+              lastActivityAt: session.lastActivityAt,
+            }),
           });
 
+          if (!response.ok) {
+            throw new Error(`Failed to send session to interaction service: ${response.statusText}`);
+          }
+
           logger.info(
-            { sessionId: session.sessionId, eventCount: storedEvents.length },
-            'Session exported to D1 and queued for processing'
+            { sessionId: session.sessionId },
+            'Session sent to interaction service'
           );
 
           // Delete events from SQLite
           const sql = this.ctx.storage.sql;
-          await sql.exec(`DELETE FROM events`);
+          await sql.exec('DELETE FROM events');
 
           // Remove the inactive session
           await this.ctx.storage.delete(key);
@@ -261,7 +214,7 @@ export class CrowWebSession extends DurableObject<Env> {
         } catch (error) {
           logger.error(
             { sessionId: session.sessionId, error },
-            'Failed to export inactive session'
+            'Failed to send session to interaction service'
           );
         }
       }
@@ -305,6 +258,10 @@ function isBatchRequest(pathname: string, method: string): boolean {
   return pathname === '/batch' && method === 'POST';
 }
 
+function isEventsRequest(pathname: string, method: string): boolean {
+  return pathname === '/events' && method === 'GET';
+}
+
 async function handleIncomingRequest(
   request: Request,
   env: Env
@@ -331,6 +288,10 @@ async function handleIncomingRequest(
 
   if (isBatchRequest(pathname, method)) {
     return handleBatch(request, env);
+  }
+
+  if (isEventsRequest(pathname, method)) {
+    return handleGetSessionEvents(request, env);
   }
 
   logger.warn({ method, pathname }, 'Route not found');

@@ -197,8 +197,9 @@ export async function handleBatch(
     const database = createDatabaseClient(environment.DB);
 
     // Create DO ID in format: apiKey-sessionId
-    const doId = `${apiKey}-${validatedData.sessionId}`;
+    const doIdName = `${apiKey}-${validatedData.sessionId}`;
     const doNamespace = environment.CROW_WEB_SESSION;
+    const doId = doNamespace.idFromName(doIdName);
     const doStub = doNamespace.get(doId);
 
     // Send events to Durable Object for storage
