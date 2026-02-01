@@ -12,8 +12,8 @@ interface SessionState {
   metadata?: Record<string, any>;
 }
 
-const SESSION_INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour
-const INACTIVE_SESSION_CALLBACK_URL = 'http://localhost:5000';
+const SESSION_INACTIVITY_TIMEOUT_MS = 1 * 60 * 1000; // 1 hour
+const INACTIVE_SESSION_CALLBACK_URL = 'https://interactions.crowai.dev';
 
 export class CrowWebSession extends DurableObject<Env> {
   private sessionState: SessionState | null = null;

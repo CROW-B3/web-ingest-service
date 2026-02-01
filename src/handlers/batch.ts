@@ -1,5 +1,5 @@
 import { createDatabaseClient, generateId } from '../db/client';
-import { events } from '../db/schema';
+import { events, sessions } from '../db/schema';
 import { corsHeaders } from '../middleware/cors';
 import { logger } from '../utils/logger';
 import {
@@ -179,7 +179,7 @@ export async function handleBatch(
 
     // Get or create session via Durable Object
     const doNamespace = environment.CROW_WEB_SESSION;
-    const doStub = doNamespace.get(validatedData.sessionId);
+    const doStub = doNamespace.getByName(validatedData.sessionId);
 
     try {
       await doStub.updateSessionActivity(validatedData.sessionId);
@@ -189,6 +189,21 @@ export async function handleBatch(
         'Failed to update session activity in DO'
       );
       // Continue with event processing even if DO fails
+    }
+
+    // Ensure session exists in database for foreign key constraint
+    try {
+      await database
+        .insert(sessions)
+        .values({ id: validatedData.sessionId })
+        .onConflictDoNothing()
+        .run();
+    } catch (error) {
+      logger.error(
+        { sessionId: validatedData.sessionId, error },
+        'Failed to ensure session exists in database'
+      );
+      // Continue with event processing even if session creation fails
     }
 
     const processingResult = await processBatchEvents(
