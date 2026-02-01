@@ -49,7 +49,8 @@
     "R2_ENDPOINT": "https://8f0203259905d8923687286c84921e6c.r2.cloudflarestorage.com",
     "R2_BUCKET_NAME": "crow-web-ingest-service-store-dev",
     "R2_PUBLIC_URL": "https://pub-e64a25eb7e0f46fab0acd0c47eb44194.r2.dev",
-    "R2_UPLOAD_PREFIX": "screenshots"
+    "R2_UPLOAD_PREFIX": "screenshots",
+    "API_KEYS": "pk_test_local_key_1,pk_test_local_key_2"
   },
   "observability": {
     "enabled": true,
@@ -87,7 +88,8 @@
         "R2_ENDPOINT": "https://8f0203259905d8923687286c84921e6c.r2.cloudflarestorage.com",
         "R2_BUCKET_NAME": "crow-web-ingest-service-store-local",
         "R2_PUBLIC_URL": "https://pub-e64a25eb7e0f46fab0acd0c47eb44194.r2.dev",
-        "R2_UPLOAD_PREFIX": "screenshots"
+        "R2_UPLOAD_PREFIX": "screenshots",
+        "API_KEYS": "pk_test_local_key_1,pk_test_local_key_2"
       }
     },
     "dev": {
@@ -111,7 +113,8 @@
         "R2_ENDPOINT": "https://8f0203259905d8923687286c84921e6c.r2.cloudflarestorage.com",
         "R2_BUCKET_NAME": "crow-web-ingest-service-store-dev",
         "R2_PUBLIC_URL": "https://pub-e64a25eb7e0f46fab0acd0c47eb44194.r2.dev",
-        "R2_UPLOAD_PREFIX": "screenshots"
+        "R2_UPLOAD_PREFIX": "screenshots",
+        "API_KEYS": "pk_test_dev_key_1,pk_test_dev_key_2"
       },
       "routes": [
         { "pattern": "dev.internal.ingest-worker.crowai.dev", "custom_domain": true }
@@ -169,7 +172,8 @@
         "R2_ENDPOINT": "https://8f0203259905d8923687286c84921e6c.r2.cloudflarestorage.com",
         "R2_BUCKET_NAME": "crow-web-ingest-service-store",
         "R2_PUBLIC_URL": "https://pub-703de4c152d04451ad7e562f1cedfca9.r2.dev",
-        "R2_UPLOAD_PREFIX": "screenshots"
+        "R2_UPLOAD_PREFIX": "screenshots",
+        "API_KEYS": ""
       }
     },
   },

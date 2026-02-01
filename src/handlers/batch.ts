@@ -1,6 +1,12 @@
 import { createDatabaseClient, generateId } from '../db/client';
 import { events, sessions } from '../db/schema';
 import { corsHeaders } from '../middleware/cors';
+import {
+  extractApiKeyFromAuthHeader,
+  validateApiKey,
+  parseAllowedApiKeys,
+  createUnauthorizedResponse,
+} from '../middleware/auth';
 import { logger } from '../utils/logger';
 import {
   validateBatchSize,
@@ -140,6 +146,19 @@ export async function handleBatch(
   environment: Env
 ): Promise<Response> {
   try {
+    // Extract and validate API key
+    const apiKey = extractApiKeyFromAuthHeader(request);
+    if (!apiKey) {
+      logger.warn('Missing Authorization header');
+      return createUnauthorizedResponse('Missing Authorization header');
+    }
+
+    const allowedKeys = parseAllowedApiKeys(environment.API_KEYS);
+    if (!validateApiKey(apiKey, allowedKeys)) {
+      logger.warn({ apiKey }, 'Invalid API key');
+      return createUnauthorizedResponse('Invalid API key');
+    }
+
     const requestBody = await request.json();
 
     const requestSizeValidation = validateRequestSize(requestBody);
@@ -177,18 +196,31 @@ export async function handleBatch(
 
     const database = createDatabaseClient(environment.DB);
 
-    // Get or create session via Durable Object
+    // Create DO ID in format: apiKey-sessionId
+    const doId = `${apiKey}-${validatedData.sessionId}`;
     const doNamespace = environment.CROW_WEB_SESSION;
-    const doStub = doNamespace.getByName(validatedData.sessionId);
+    const doStub = doNamespace.get(doId);
 
-    try {
-      await doStub.updateSessionActivity(validatedData.sessionId);
-    } catch (error) {
-      logger.error(
-        { sessionId: validatedData.sessionId, error },
-        'Failed to update session activity in DO'
-      );
-      // Continue with event processing even if DO fails
+    // Send events to Durable Object for storage
+    for (const eventData of validatedData.events) {
+      const eventId = generateId('evt');
+      try {
+        await doStub.updateSessionActivity(validatedData.sessionId, {
+          id: eventId,
+          type: eventData.type,
+          timestamp: eventData.timestamp,
+          url: eventData.url,
+          data: eventData.data,
+          userAgent: eventData.userAgent,
+          screenSize: eventData.screenSize,
+        });
+      } catch (error) {
+        logger.error(
+          { sessionId: validatedData.sessionId, error },
+          'Failed to update session activity in DO'
+        );
+        // Continue with event processing even if DO fails
+      }
     }
 
     // Ensure session exists in database for foreign key constraint
