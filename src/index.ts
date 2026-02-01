@@ -1,4 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
+import { createDatabaseClient } from './db/client';
+import { events, sessions } from './db/schema';
 import { handleBatch } from './handlers/batch';
 import { handleTrack } from './handlers/track';
 import { corsHeaders, handleCorsPreFlight } from './middleware/cors';
@@ -12,8 +14,17 @@ interface SessionState {
   metadata?: Record<string, any>;
 }
 
-const SESSION_INACTIVITY_TIMEOUT_MS = 1 * 60 * 1000; // 1 hour
-const INACTIVE_SESSION_CALLBACK_URL = 'https://interactions.crowai.dev';
+const SESSION_INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour
+
+export interface Event {
+  id: string;
+  type: string;
+  timestamp: number;
+  url: string;
+  data?: Record<string, any>;
+  userAgent?: string;
+  screenSize?: { width: number; height: number };
+}
 
 export class CrowWebSession extends DurableObject<Env> {
   private sessionState: SessionState | null = null;
@@ -42,6 +53,30 @@ export class CrowWebSession extends DurableObject<Env> {
     };
 
     await this.ctx.storage.put(`session:${sessionId}`, newSession);
+
+    // Initialize SQLite schema for this DO
+    const sql = this.ctx.storage.sql;
+    try {
+      await sql.exec(`
+        CREATE TABLE IF NOT EXISTS events (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL,
+          timestamp INTEGER NOT NULL,
+          url TEXT NOT NULL,
+          data TEXT,
+          userAgent TEXT,
+          screenWidth INTEGER,
+          screenHeight INTEGER,
+          createdAt INTEGER DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+    } catch (error) {
+      logger.warn(
+        { error },
+        'Failed to create events table, may already exist'
+      );
+    }
+
     this.sessionState = newSession;
 
     // Set alarm for 1 hour inactivity check
@@ -51,7 +86,72 @@ export class CrowWebSession extends DurableObject<Env> {
     return newSession;
   }
 
-  async updateSessionActivity(sessionId: string): Promise<SessionState> {
+  private async insertEventToLocalStorage(event: Event): Promise<void> {
+    const sql = this.ctx.storage.sql;
+    const eventData = {
+      id: event.id,
+      type: event.type,
+      timestamp: event.timestamp,
+      url: event.url,
+      data: event.data ? JSON.stringify(event.data) : null,
+      userAgent: event.userAgent || null,
+      screenWidth: event.screenSize?.width || null,
+      screenHeight: event.screenSize?.height || null,
+    };
+
+    await sql.exec(
+      `
+      INSERT INTO events (id, type, timestamp, url, data, userAgent, screenWidth, screenHeight)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+      [
+        eventData.id,
+        eventData.type,
+        eventData.timestamp,
+        eventData.url,
+        eventData.data,
+        eventData.userAgent,
+        eventData.screenWidth,
+        eventData.screenHeight,
+      ]
+    );
+  }
+
+  private async queryStoredEvents(): Promise<Event[]> {
+    const sql = this.ctx.storage.sql;
+
+    const result = await sql.exec(
+      `SELECT id, type, timestamp, url, data, userAgent, screenWidth, screenHeight FROM events ORDER BY timestamp ASC`
+    );
+
+    if (!result || !result[0]) return [];
+
+    const rows = result[0].results as any[];
+    return rows.map(row => ({
+      id: row.id,
+      type: row.type,
+      timestamp: row.timestamp,
+      url: row.url,
+      data: row.data ? JSON.parse(row.data) : undefined,
+      userAgent: row.userAgent,
+      screenSize: row.screenWidth
+        ? { width: row.screenWidth, height: row.screenHeight }
+        : undefined,
+    }));
+  }
+
+  async storeEvent(event: Event): Promise<void> {
+    await this.insertEventToLocalStorage(event);
+  }
+
+  async getStoredEvents(): Promise<Event[]> {
+    return this.queryStoredEvents();
+  }
+
+  async updateSessionActivity(
+    sessionId: string,
+    event?: Event
+  ): Promise<SessionState> {
     let session = await this.ctx.storage.get<SessionState>(
       `session:${sessionId}`
     );
@@ -65,6 +165,11 @@ export class CrowWebSession extends DurableObject<Env> {
 
     await this.ctx.storage.put(`session:${sessionId}`, session);
     this.sessionState = session;
+
+    // Store the event in SQLite if provided
+    if (event) {
+      await this.storeEvent(event);
+    }
 
     // Reset alarm
     await this.ctx.storage.setAlarm(Date.now() + SESSION_INACTIVITY_TIMEOUT_MS);
@@ -93,19 +198,59 @@ export class CrowWebSession extends DurableObject<Env> {
       if (timeSinceLastActivity >= SESSION_INACTIVITY_TIMEOUT_MS) {
         logger.info(
           { sessionId: session.sessionId, inactiveFor: timeSinceLastActivity },
-          'Session inactive, sending callback'
+          'Session inactive, exporting to D1'
         );
 
-        // Send callback to localhost:5000
         try {
-          await fetch(INACTIVE_SESSION_CALLBACK_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              sessionId: session.sessionId,
-              timestamp: Date.now(),
-            }),
+          // Get all events from SQLite
+          const storedEvents = await this.getStoredEvents();
+
+          // Save session and events to D1
+          const database = createDatabaseClient(this.env.DB);
+
+          // Insert session into D1 using Drizzle ORM
+          await database
+            .insert(sessions)
+            .values({
+              id: session.sessionId,
+              metadata: {
+                eventCount: session.eventCount,
+                lastActivityAt: session.lastActivityAt,
+              },
+            })
+            .run();
+
+          // Insert events into D1 using Drizzle ORM
+          for (const event of storedEvents) {
+            const eventId = `${session.sessionId}-${event.id}`;
+            await database
+              .insert(events)
+              .values({
+                id: eventId,
+                sessionId: session.sessionId,
+                type: event.type,
+                url: event.url,
+                timestamp: new Date(event.timestamp),
+                data: event.data || null,
+              })
+              .run();
+          }
+
+          // Send message to queue for processing
+          await this.env.WEB_SESSION_EXPORT.send({
+            sessionId: session.sessionId,
+            eventCount: storedEvents.length,
+            timestamp: Date.now(),
           });
+
+          logger.info(
+            { sessionId: session.sessionId, eventCount: storedEvents.length },
+            'Session exported to D1 and queued for processing'
+          );
+
+          // Delete events from SQLite
+          const sql = this.ctx.storage.sql;
+          await sql.exec(`DELETE FROM events`);
 
           // Remove the inactive session
           await this.ctx.storage.delete(key);
@@ -116,7 +261,7 @@ export class CrowWebSession extends DurableObject<Env> {
         } catch (error) {
           logger.error(
             { sessionId: session.sessionId, error },
-            'Failed to send inactive session callback'
+            'Failed to export inactive session'
           );
         }
       }
