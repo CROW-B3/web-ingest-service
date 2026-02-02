@@ -1,9 +1,11 @@
+import type { SessionExportMessage } from './utils/queue';
 import { DurableObject } from 'cloudflare:workers';
 import { handleBatch } from './handlers/batch';
-import { handleTrack } from './handlers/track';
 import { handleGetSessionEvents } from './handlers/events';
+import { handleTrack } from './handlers/track';
 import { corsHeaders, handleCorsPreFlight } from './middleware/cors';
 import { logger } from './utils/logger';
+import { createQueueHandler } from './utils/queue';
 
 interface SessionState {
   sessionId: string;
@@ -13,7 +15,7 @@ interface SessionState {
   metadata?: Record<string, any>;
 }
 
-const SESSION_INACTIVITY_TIMEOUT_MS = 1 * 5 * 1000; // 1 hour
+const SESSION_INACTIVITY_TIMEOUT_MS = 1 * 30 * 1000; // 1 hour
 
 export interface Event {
   id: string;
@@ -56,7 +58,9 @@ export class CrowWebSession extends DurableObject<Env> {
     // Initialize SQLite schema for this DO
     const sql = this.ctx.storage.sql;
     try {
-      await sql.exec('CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, type TEXT NOT NULL, timestamp INTEGER NOT NULL, url TEXT NOT NULL, data TEXT, userAgent TEXT, screenWidth INTEGER, screenHeight INTEGER, createdAt INTEGER DEFAULT CURRENT_TIMESTAMP)');
+      await sql.exec(
+        'CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, type TEXT NOT NULL, timestamp INTEGER NOT NULL, url TEXT NOT NULL, data TEXT, userAgent TEXT, screenWidth INTEGER, screenHeight INTEGER, createdAt INTEGER DEFAULT CURRENT_TIMESTAMP)'
+      );
     } catch (error) {
       logger.warn(
         { error },
@@ -177,33 +181,30 @@ export class CrowWebSession extends DurableObject<Env> {
       if (timeSinceLastActivity >= SESSION_INACTIVITY_TIMEOUT_MS) {
         logger.info(
           { sessionId: session.sessionId, inactiveFor: timeSinceLastActivity },
-          'Session inactive, sending to interaction service'
+          'Session inactive, processing for export'
         );
 
         try {
-          // Send session to core-interaction-service for processing
-          const response = await fetch('http://localhost:8008/sessions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              sessionId: session.sessionId,
-              eventCount: session.eventCount,
-              lastActivityAt: session.lastActivityAt,
-            }),
-          });
+          // Prepare lightweight trigger message with just sessionId
+          // The core-interaction-service will fetch the full event data from the /events endpoint
+          const exportMessage: SessionExportMessage = {
+            sessionId: session.sessionId,
+          };
 
-          if (!response.ok) {
-            throw new Error(`Failed to send session to interaction service: ${response.statusText}`);
-          }
+          // Send trigger message to queue for processing by interaction service
+          const queueHandler = createQueueHandler(
+            this.env.WEB_SESSION_EXPORT,
+            this.env
+          );
+          await queueHandler.sendSessionToQueue(exportMessage);
 
           logger.info(
             { sessionId: session.sessionId },
-            'Session sent to interaction service'
+            'Session trigger sent to queue for processing'
           );
 
-          // Delete events from SQLite
-          const sql = this.ctx.storage.sql;
-          await sql.exec('DELETE FROM events');
+          // Note: Do not delete events yet - core-interaction-service needs to fetch them via /events endpoint
+          // Events will be cleaned up after confirmation of processing or after TTL
 
           // Remove the inactive session
           await this.ctx.storage.delete(key);
@@ -214,8 +215,9 @@ export class CrowWebSession extends DurableObject<Env> {
         } catch (error) {
           logger.error(
             { sessionId: session.sessionId, error },
-            'Failed to send session to interaction service'
+            'Failed to process session for export'
           );
+          // Continue processing other sessions even if one fails
         }
       }
     }

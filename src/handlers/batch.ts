@@ -1,12 +1,12 @@
 import { createDatabaseClient, generateId } from '../db/client';
 import { events, sessions } from '../db/schema';
-import { corsHeaders } from '../middleware/cors';
 import {
-  extractApiKeyFromAuthHeader,
-  validateApiKey,
-  parseAllowedApiKeys,
   createUnauthorizedResponse,
+  extractApiKeyFromAuthHeader,
+  parseAllowedApiKeys,
+  validateApiKey,
 } from '../middleware/auth';
+import { corsHeaders } from '../middleware/cors';
 import { logger } from '../utils/logger';
 import {
   validateBatchSize,
@@ -94,7 +94,7 @@ async function insertSingleBatchEvent(
       sessionId,
       type: eventData.type,
       url: eventData.url,
-      timestamp: new Date(eventData.timestamp),
+      timestamp: new Date(eventData.timestamp * 1000), // Convert seconds to milliseconds
       data: eventData.data,
     })
     .run();

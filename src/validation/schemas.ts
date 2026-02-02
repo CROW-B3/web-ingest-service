@@ -26,7 +26,31 @@ export const batchRequestSchema = z.object({
   events: z.array(eventSchema).min(1).max(maximumEventsPerBatchRequest),
 });
 
+// Session start request schema
+export const sessionStartRequestSchema = z.object({
+  sessionId: z.string(),
+  projectId: z.string(),
+  user: z.object({
+    id: z.string().optional(),
+    anonymousId: z.string(),
+  }),
+  context: z.object({
+    url: z.string().url(),
+    referrer: z.string().optional(),
+    userAgent: z.string(),
+  }),
+});
+
+// Session end request schema
+export const sessionEndRequestSchema = z.object({
+  sessionId: z.string(),
+  projectId: z.string(),
+  duration: z.number(),
+});
+
 export type ScreenSize = z.infer<typeof screenSizeSchema>;
 export type Event = z.infer<typeof eventSchema>;
 export type TrackRequest = z.infer<typeof trackRequestSchema>;
 export type BatchRequest = z.infer<typeof batchRequestSchema>;
+export type SessionStartRequest = z.infer<typeof sessionStartRequestSchema>;
+export type SessionEndRequest = z.infer<typeof sessionEndRequestSchema>;
