@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "deploy": "wrangler deploy --env=\"\"",
+    "deploy": "wrangler deploy --env production",
     "deploy:dev": "wrangler deploy --env dev",
     "dev": "wrangler dev --env local --port 8013 --inspector-port 9242 | pino-pretty",
     "start": "wrangler dev",
