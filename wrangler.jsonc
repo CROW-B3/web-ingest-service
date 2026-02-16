@@ -76,7 +76,7 @@
         {
           "binding": "DB",
           "database_name": "crow-web-ingest-service-db-local",
-          "database_id": "d84b7a59-d8d0-47ce-a59d-0cb5e5904ebc"
+          "database_id": "901ab2d2-9aa8-495b-ab06-0cb3f53c28cf"
         }
       ],
       "r2_buckets": [
