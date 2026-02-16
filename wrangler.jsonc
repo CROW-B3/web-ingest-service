@@ -35,7 +35,7 @@
     {
       "binding": "DB",
       "database_name": "crow-web-ingest-service-db-dev",
-      "database_id": "e73411e4-8c1b-48a6-ad20-2bd74249d29a",
+      "database_id": "d84b7a59-d8d0-47ce-a59d-0cb5e5904ebc",
       "remote": true
     }
   ],
@@ -76,7 +76,7 @@
         {
           "binding": "DB",
           "database_name": "crow-web-ingest-service-db-local",
-          "database_id": "e73411e4-8c1b-48a6-ad20-2bd74249d29a"
+          "database_id": "d84b7a59-d8d0-47ce-a59d-0cb5e5904ebc"
         }
       ],
       "r2_buckets": [
@@ -99,7 +99,7 @@
         {
           "binding": "DB",
           "database_name": "crow-web-ingest-service-db-dev",
-          "database_id": "e73411e4-8c1b-48a6-ad20-2bd74249d29a",
+          "database_id": "d84b7a59-d8d0-47ce-a59d-0cb5e5904ebc",
           "remote": true
         }
       ],
