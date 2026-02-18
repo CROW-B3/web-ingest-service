@@ -46,6 +46,9 @@
       "remote": true
     }
   ],
+  "browser": {
+    "binding": "BROWSER"
+  },
   "vars": {
     "R2_ENDPOINT": "https://8f0203259905d8923687286c84921e6c.r2.cloudflarestorage.com",
     "R2_BUCKET_NAME": "crow-web-ingest-service-store-dev",

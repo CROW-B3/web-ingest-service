@@ -1,7 +1,13 @@
 import { instrument } from '@microlabs/otel-cf-workers';
 import { DurableObject } from 'cloudflare:workers';
 import { handleBatch } from './handlers/batch';
+import { handleReplayBatch } from './handlers/replay';
+import {
+  handleReplayRender,
+  handleGetReplayScreenshots,
+} from './handlers/replay-render';
 import { handleSessionEnd, handleSessionStart } from './handlers/session';
+import { handleGetSessionTimeline } from './handlers/session-timeline';
 import { handleTrack } from './handlers/track';
 import { createOtelConfig } from './lib/otel';
 import { corsHeaders, handleCorsPreFlight } from './middleware/cors';
@@ -58,6 +64,32 @@ function isSessionEndRequest(pathname: string, method: string): boolean {
   return pathname === '/session/end' && method === 'POST';
 }
 
+function isReplayBatchRequest(pathname: string, method: string): boolean {
+  return pathname === '/replay/batch' && method === 'POST';
+}
+
+function isReplayRenderRequest(pathname: string, method: string): boolean {
+  return pathname === '/replay/render' && method === 'POST';
+}
+
+function parseReplayScreenshotsSessionId(
+  pathname: string,
+  method: string
+): string | null {
+  if (method !== 'GET') return null;
+  const match = pathname.match(/^\/replay\/screenshots\/([^/]+)$/);
+  return match ? match[1] : null;
+}
+
+function parseSessionTimelineId(
+  pathname: string,
+  method: string
+): string | null {
+  if (method !== 'GET') return null;
+  const match = pathname.match(/^\/session\/timeline\/([^/]+)$/);
+  return match ? match[1] : null;
+}
+
 async function handleIncomingRequest(
   request: Request,
   env: Env
@@ -92,6 +124,27 @@ async function handleIncomingRequest(
 
   if (isSessionEndRequest(pathname, method)) {
     return handleSessionEnd(request, env);
+  }
+
+  if (isReplayBatchRequest(pathname, method)) {
+    return handleReplayBatch(request, env);
+  }
+
+  if (isReplayRenderRequest(pathname, method)) {
+    return handleReplayRender(request, env);
+  }
+
+  const screenshotsSessionId = parseReplayScreenshotsSessionId(
+    pathname,
+    method
+  );
+  if (screenshotsSessionId) {
+    return handleGetReplayScreenshots(request, env, screenshotsSessionId);
+  }
+
+  const timelineSessionId = parseSessionTimelineId(pathname, method);
+  if (timelineSessionId) {
+    return handleGetSessionTimeline(request, env, timelineSessionId);
   }
 
   logger.warn({ method, pathname }, 'Route not found');
