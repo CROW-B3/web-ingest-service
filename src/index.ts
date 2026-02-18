@@ -1,7 +1,9 @@
+import { instrument } from '@microlabs/otel-cf-workers';
 import { DurableObject } from 'cloudflare:workers';
 import { handleBatch } from './handlers/batch';
 import { handleSessionEnd, handleSessionStart } from './handlers/session';
 import { handleTrack } from './handlers/track';
+import { createOtelConfig } from './lib/otel';
 import { corsHeaders, handleCorsPreFlight } from './middleware/cors';
 import { logger } from './utils/logger';
 
@@ -96,8 +98,10 @@ async function handleIncomingRequest(
   return createNotFoundResponse();
 }
 
-export default {
-  async fetch(request, env): Promise<Response> {
+const handler = {
+  async fetch(request: Request, env: Env): Promise<Response> {
     return handleIncomingRequest(request, env);
   },
-} satisfies ExportedHandler<Env>;
+};
+
+export default instrument(handler, createOtelConfig('crow-web-ingest-service'));
