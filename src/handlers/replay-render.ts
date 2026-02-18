@@ -328,12 +328,15 @@ export async function handleReplayRender(
       'window.__rrwebPlayer !== undefined && window.__renderReady === true'
     );
 
+    const r2PublicUrl = environment.R2_PUBLIC_URL || '';
+
     const screenshots: Array<{
       timestamp: number;
       offsetMs: number;
       eventType: string;
       description: string;
       r2Key: string;
+      url: string;
       clickPosition?: { x: number; y: number };
     }> = [];
 
@@ -390,6 +393,7 @@ export async function handleReplayRender(
           eventType: moment.eventType,
           description: moment.description,
           r2Key,
+          url: r2PublicUrl ? `${r2PublicUrl}/${r2Key}` : r2Key,
           clickPosition: moment.clickData
             ? { x: moment.clickData.x, y: moment.clickData.y }
             : undefined,
