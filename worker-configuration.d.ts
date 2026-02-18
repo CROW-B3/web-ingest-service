@@ -20,6 +20,7 @@ declare namespace Cloudflare {
 		R2_BUCKET: R2Bucket;
 		DB: D1Database;
 		WEB_SESSION_EXPORT: Queue;
+		BROWSER: Fetcher;
 	}
 }
 interface Env extends Cloudflare.Env {}

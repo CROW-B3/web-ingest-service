@@ -154,7 +154,7 @@ async function insertSingleBatchEvent(
       anonymousId,
       type: eventData.type,
       url: eventData.url,
-      timestamp: new Date(eventData.timestamp),
+      timestamp: eventData.timestamp,
       data: eventData.data,
     })
     .run();
