@@ -11,7 +11,27 @@ export const screenSizeSchema = z.object({
 });
 
 export const eventSchema = z.object({
-  type: z.enum(['pageview', 'click', 'form', 'custom', 'error']),
+  type: z.enum([
+    'pageview',
+    'click',
+    'form',
+    'custom',
+    'error',
+    'navigation',
+    'engagement',
+    'scroll',
+    'visibility',
+    'rage_click',
+    'hover',
+    'form_focus',
+    'add_to_cart',
+    'variant_select',
+    'image_zoom',
+    'context_snapshot',
+    'performance',
+    'web_vital',
+    'api_error',
+  ]),
   timestamp: z.number(),
   url: z.string().url(),
   data: z.record(z.string(), z.any()).optional(),
@@ -59,6 +79,20 @@ export const sessionEndRequestSchema = z.object({
   interactions: z.number(),
 });
 
+export const replayBatchRequestSchema = z.object({
+  projectId: z.string(),
+  sessionId: z.string(),
+  chunkIndex: z.number().int().min(0),
+  events: z.array(z.any()).min(1).max(500),
+  timestamp: z.number(),
+});
+
+export const replayRenderRequestSchema = z.object({
+  projectId: z.string(),
+  sessionId: z.string(),
+  timestamps: z.array(z.number()).optional(),
+});
+
 export type User = z.infer<typeof userSchema>;
 export type ScreenSize = z.infer<typeof screenSizeSchema>;
 export type Event = z.infer<typeof eventSchema>;
@@ -67,3 +101,5 @@ export type TrackRequest = z.infer<typeof trackRequestSchema>;
 export type BatchRequest = z.infer<typeof batchRequestSchema>;
 export type SessionStartRequest = z.infer<typeof sessionStartRequestSchema>;
 export type SessionEndRequest = z.infer<typeof sessionEndRequestSchema>;
+export type ReplayBatchRequest = z.infer<typeof replayBatchRequestSchema>;
+export type ReplayRenderRequest = z.infer<typeof replayRenderRequestSchema>;
