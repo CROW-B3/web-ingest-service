@@ -1,10 +1,11 @@
 import { instrument } from '@microlabs/otel-cf-workers';
 import { DurableObject } from 'cloudflare:workers';
 import { handleBatch } from './handlers/batch';
+import { handleQueueBatch } from './handlers/queue-consumer';
 import { handleReplayBatch } from './handlers/replay';
 import {
-  handleReplayRender,
   handleGetReplayScreenshots,
+  handleReplayRender,
 } from './handlers/replay-render';
 import { handleSessionEnd, handleSessionStart } from './handlers/session';
 import { handleGetSessionTimeline } from './handlers/session-timeline';
@@ -154,6 +155,9 @@ async function handleIncomingRequest(
 const handler = {
   async fetch(request: Request, env: Env): Promise<Response> {
     return handleIncomingRequest(request, env);
+  },
+  async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
+    await handleQueueBatch(batch as MessageBatch<any>, env);
   },
 };
 

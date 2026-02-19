@@ -1,5 +1,11 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+  index,
+  integer,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
 
 export const projects = sqliteTable('projects', {
   id: text('id').primaryKey(),
@@ -52,7 +58,10 @@ export const sessions = sqliteTable(
     deviceType: text('device_type'),
     browser: text('browser'),
     operatingSystem: text('os'),
-    hasReplay: integer('has_replay', { mode: 'boolean' }).notNull().default(false),
+    hasReplay: integer('has_replay', { mode: 'boolean' })
+      .notNull()
+      .default(false),
+    exitContext: text('exit_context', { mode: 'json' }),
   },
   table => ({
     projectIdx: index('idx_sessions_project').on(table.projectId),
@@ -148,7 +157,9 @@ export const sessionMetrics = sqliteTable(
     maxScrollDepth: integer('max_scroll_depth').notNull().default(0),
     rageClickCount: integer('rage_click_count').notNull().default(0),
     interactionCount: integer('interaction_count').notNull().default(0),
-    hasReplay: integer('has_replay', { mode: 'boolean' }).notNull().default(false),
+    hasReplay: integer('has_replay', { mode: 'boolean' })
+      .notNull()
+      .default(false),
     lcpMs: integer('lcp_ms'),
     fidMs: integer('fid_ms'),
     cls: integer('cls'),

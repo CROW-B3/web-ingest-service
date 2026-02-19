@@ -71,12 +71,36 @@ export const sessionStartRequestSchema = z.object({
   context: contextSchema,
 });
 
+const exitContextSchema = z
+  .object({
+    lastPageUrl: z.string().optional(),
+    lastPageTitle: z.string().optional(),
+    lastPageTimeSpentMs: z.number().optional(),
+    exitTrigger: z
+      .enum(['tab_close', 'navigation_away', 'idle_timeout'])
+      .optional(),
+    hadCartItems: z.boolean().optional(),
+    lastInteractions: z
+      .array(
+        z.object({
+          type: z.string(),
+          timestamp: z.number(),
+          description: z.string(),
+        })
+      )
+      .max(20)
+      .optional(),
+    totalSessionDurationMs: z.number().optional(),
+  })
+  .optional();
+
 export const sessionEndRequestSchema = z.object({
   projectId: z.string(),
   sessionId: z.string(),
   duration: z.number(),
   pageViews: z.number(),
   interactions: z.number(),
+  exitContext: exitContextSchema,
 });
 
 export const replayBatchRequestSchema = z.object({
