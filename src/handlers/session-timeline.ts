@@ -1,11 +1,11 @@
-import { eq, asc } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { createDatabaseClient } from '../db/client';
 import {
   events,
   projects,
   replayScreenshots,
-  sessions,
   sessionMetrics,
+  sessions,
 } from '../db/schema';
 import { corsHeaders } from '../middleware/cors';
 import { logger } from '../utils/logger';
@@ -62,7 +62,9 @@ function describeEvent(event: any): string {
       return `Hovered on ${data?.elementPath || 'element'} for ${data?.duration}ms`;
 
     case 'visibility':
-      return data?.visible ? 'Returned to tab (tab became visible)' : 'Left tab (tab became hidden)';
+      return data?.visible
+        ? 'Returned to tab (tab became visible)'
+        : 'Left tab (tab became hidden)';
 
     case 'engagement':
       if (data?.subtype === 'page_entry') return 'Entered page';
@@ -93,6 +95,72 @@ function describeEvent(event: any): string {
     default:
       return `${event.type} event`;
   }
+}
+
+interface TimelineEntry {
+  id: string;
+  type: string;
+  timestamp: number;
+  url: string;
+  description: string;
+  data: any;
+  screenshot: { url: string; r2Key: string; eventType: string } | null;
+}
+
+interface PageGroup {
+  url: string;
+  pageTitle: string | null;
+  entryTimestamp: number;
+  exitTimestamp: number;
+  timeSpentMs: number;
+  eventCount: number;
+  events: TimelineEntry[];
+}
+
+function groupTimelineByPage(timeline: TimelineEntry[]): PageGroup[] {
+  if (timeline.length === 0) return [];
+
+  const pageGroups: PageGroup[] = [];
+  let currentGroup: PageGroup | null = null;
+
+  for (const entry of timeline) {
+    if (!currentGroup || currentGroup.url !== entry.url) {
+      if (currentGroup) {
+        const lastEvent = currentGroup.events[currentGroup.events.length - 1];
+        currentGroup.exitTimestamp = lastEvent.timestamp;
+        currentGroup.timeSpentMs =
+          currentGroup.exitTimestamp - currentGroup.entryTimestamp;
+        currentGroup.eventCount = currentGroup.events.length;
+      }
+
+      currentGroup = {
+        url: entry.url,
+        pageTitle: entry.data?.pageTitle || null,
+        entryTimestamp: entry.timestamp,
+        exitTimestamp: entry.timestamp,
+        timeSpentMs: 0,
+        eventCount: 0,
+        events: [],
+      };
+      pageGroups.push(currentGroup);
+    }
+
+    currentGroup.events.push(entry);
+
+    if (entry.type === 'pageview' && entry.data?.pageTitle) {
+      currentGroup.pageTitle = entry.data.pageTitle;
+    }
+  }
+
+  if (currentGroup && currentGroup.events.length > 0) {
+    const lastEvent = currentGroup.events[currentGroup.events.length - 1];
+    currentGroup.exitTimestamp = lastEvent.timestamp;
+    currentGroup.timeSpentMs =
+      currentGroup.exitTimestamp - currentGroup.entryTimestamp;
+    currentGroup.eventCount = currentGroup.events.length;
+  }
+
+  return pageGroups;
 }
 
 async function findProjectByApiKey(database: any, apiKey: string) {
@@ -205,9 +273,7 @@ export async function handleGetSessionTimeline(
     });
 
     // Build session summary for AI
-    const pageViews = sessionEvents.filter(
-      (e: any) => e.type === 'pageview'
-    );
+    const pageViews = sessionEvents.filter((e: any) => e.type === 'pageview');
     const clicks = sessionEvents.filter((e: any) => e.type === 'click');
     const navigations = sessionEvents.filter(
       (e: any) => e.type === 'navigation'
@@ -217,9 +283,7 @@ export async function handleGetSessionTimeline(
       (e: any) => e.type === 'rage_click'
     );
 
-    const pagesVisited = [
-      ...new Set(pageViews.map((e: any) => e.url)),
-    ];
+    const pagesVisited = [...new Set(pageViews.map((e: any) => e.url))];
 
     const summary = {
       sessionId: session.id,
@@ -235,6 +299,11 @@ export async function handleGetSessionTimeline(
       initialUrl: session.initialUrl,
       referrer: session.referrer,
       hasReplay: session.hasReplay,
+      exitContext: session.exitContext
+        ? typeof session.exitContext === 'string'
+          ? JSON.parse(session.exitContext)
+          : session.exitContext
+        : null,
       totalEvents: sessionEvents.length,
       totalPageViews: pageViews.length,
       totalClicks: clicks.length,
@@ -262,11 +331,14 @@ export async function handleGetSessionTimeline(
         : null,
     };
 
+    const pageGroups = groupTimelineByPage(timeline);
+
     return new Response(
       JSON.stringify({
         success: true,
         summary,
         timeline,
+        pageGroups,
         screenshots: screenshotRows.map((row: any) => ({
           id: row.id,
           timestamp: row.timestamp,
