@@ -1,4 +1,5 @@
-import { eq, asc } from 'drizzle-orm';
+import puppeteer from '@cloudflare/puppeteer';
+import { asc, eq } from 'drizzle-orm';
 import { createDatabaseClient, generateId } from '../db/client';
 import {
   projects,
@@ -9,7 +10,6 @@ import {
 import { corsHeaders } from '../middleware/cors';
 import { logger } from '../utils/logger';
 import { replayRenderRequestSchema } from '../validation/schemas';
-import puppeteer from '@cloudflare/puppeteer';
 
 function createErrorResponse(
   errorMessage: string,
@@ -53,10 +53,7 @@ async function findSessionById(database: any, sessionId: string) {
     .get();
 }
 
-async function fetchAllReplayChunks(
-  database: any,
-  sessionId: string
-) {
+async function fetchAllReplayChunks(database: any, sessionId: string) {
   return database
     .select()
     .from(replayChunks)
@@ -247,6 +244,150 @@ function buildReplayHtml(
 </html>`;
 }
 
+export interface ScreenshotResult {
+  timestamp: number;
+  offsetMs: number;
+  eventType: string;
+  description: string;
+  r2Key: string;
+  url: string;
+  clickPosition?: { x: number; y: number };
+}
+
+export interface RenderResult {
+  success: boolean;
+  viewport?: { width: number; height: number };
+  screenshots: ScreenshotResult[];
+  error?: string;
+}
+
+export const MAX_KEY_MOMENTS_FOR_QUEUE = 20;
+
+export async function renderScreenshotsForSession(
+  env: Env,
+  projectId: string,
+  sessionId: string,
+  requestedTimestamps?: number[],
+  maxMoments?: number
+): Promise<RenderResult> {
+  const database = createDatabaseClient(env.DB);
+
+  const chunks = await fetchAllReplayChunks(database, sessionId);
+
+  if (chunks.length === 0) {
+    return { success: false, screenshots: [], error: 'No replay data found' };
+  }
+
+  const allEvents = await reassembleReplayEvents(env.R2_BUCKET, chunks);
+
+  const keyMoments = detectKeyMoments(allEvents);
+
+  let targetMoments: KeyMoment[];
+  if (requestedTimestamps && requestedTimestamps.length > 0) {
+    const firstTimestamp =
+      allEvents.length > 0 ? (allEvents[0].timestamp ?? 0) : 0;
+    targetMoments = requestedTimestamps.map(ts => ({
+      timestamp: ts,
+      offsetMs: ts - firstTimestamp,
+      eventType: 'requested',
+      description: `Requested timestamp ${ts}`,
+    }));
+  } else {
+    targetMoments = keyMoments;
+  }
+
+  if (maxMoments && targetMoments.length > maxMoments) {
+    targetMoments = targetMoments.slice(0, maxMoments);
+  }
+
+  const viewport = getSessionViewport(allEvents);
+  const html = buildReplayHtml(allEvents, viewport);
+
+  const browser = await puppeteer.launch(env.BROWSER);
+  const page = await browser.newPage();
+  await page.setViewport({
+    width: viewport.width,
+    height: viewport.height,
+  });
+  await page.setContent(html, { waitUntil: 'networkidle0' });
+
+  await page.waitForFunction(
+    'window.__rrwebPlayer !== undefined && window.__renderReady === true'
+  );
+
+  const r2PublicUrl = env.R2_PUBLIC_URL || '';
+  const screenshots: ScreenshotResult[] = [];
+
+  for (const moment of targetMoments) {
+    try {
+      await page.evaluate((offsetMs: number) => {
+        const player = (window as any).__rrwebPlayer;
+        if (player && player.goto) {
+          player.goto(offsetMs, false);
+        }
+      }, moment.offsetMs);
+
+      await page.evaluate(() => {
+        return new Promise<void>(resolve => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              setTimeout(resolve, 100);
+            });
+          });
+        });
+      });
+
+      const screenshotBuffer = await page.screenshot({ type: 'png' });
+
+      const r2Key = `screenshots/${projectId}/${sessionId}/${moment.timestamp}.png`;
+      await env.R2_BUCKET.put(r2Key, screenshotBuffer, {
+        httpMetadata: { contentType: 'image/png' },
+      });
+
+      const screenshotId = generateId('rscr');
+      await database
+        .insert(replayScreenshots)
+        .values({
+          id: screenshotId,
+          projectId,
+          sessionId,
+          r2Key,
+          timestamp: moment.timestamp,
+          eventType: moment.eventType,
+          viewportWidth: viewport.width,
+          viewportHeight: viewport.height,
+        })
+        .run();
+
+      screenshots.push({
+        timestamp: moment.timestamp,
+        offsetMs: moment.offsetMs,
+        eventType: moment.eventType,
+        description: moment.description,
+        r2Key,
+        url: r2PublicUrl ? `${r2PublicUrl}/${r2Key}` : r2Key,
+        clickPosition: moment.clickData
+          ? { x: moment.clickData.x, y: moment.clickData.y }
+          : undefined,
+      });
+    } catch (screenshotError) {
+      logger.error(
+        { error: screenshotError, timestamp: moment.timestamp },
+        'Failed to capture screenshot at timestamp'
+      );
+    }
+  }
+
+  await browser.close();
+
+  logger.info(
+    { screenshotCount: screenshots.length },
+    'Replay render complete'
+  );
+
+  return { success: true, viewport, screenshots };
+}
+
 export async function handleReplayRender(
   request: Request,
   environment: Env
@@ -280,144 +421,22 @@ export async function handleReplayRender(
       return createErrorResponse('Session not found', 404);
     }
 
-    const chunks = await fetchAllReplayChunks(
-      database,
-      validatedData.sessionId
+    const result = await renderScreenshotsForSession(
+      environment,
+      project.id,
+      validatedData.sessionId,
+      validatedData.timestamps
     );
 
-    if (chunks.length === 0) {
-      return createErrorResponse('No replay data found for this session', 404);
+    if (!result.success) {
+      return createErrorResponse(result.error || 'Render failed', 404);
     }
-
-    const allEvents = await reassembleReplayEvents(
-      environment.R2_BUCKET,
-      chunks
-    );
-
-    // Detect key moments with proper offset calculation
-    const keyMoments = detectKeyMoments(allEvents);
-
-    // Use requested timestamps or detected key moments
-    let targetMoments: KeyMoment[];
-    if (validatedData.timestamps && validatedData.timestamps.length > 0) {
-      const firstTimestamp = allEvents.length > 0 ? allEvents[0].timestamp ?? 0 : 0;
-      targetMoments = validatedData.timestamps.map(ts => ({
-        timestamp: ts,
-        offsetMs: ts - firstTimestamp,
-        eventType: 'requested',
-        description: `Requested timestamp ${ts}`,
-      }));
-    } else {
-      targetMoments = keyMoments;
-    }
-
-    // Use actual session viewport from rrweb meta events
-    const viewport = getSessionViewport(allEvents);
-    const html = buildReplayHtml(allEvents, viewport);
-
-    const browser = await puppeteer.launch(environment.BROWSER);
-    const page = await browser.newPage();
-    await page.setViewport({
-      width: viewport.width,
-      height: viewport.height,
-    });
-    await page.setContent(html, { waitUntil: 'networkidle0' });
-
-    // Wait for rrweb player to fully initialize
-    await page.waitForFunction(
-      'window.__rrwebPlayer !== undefined && window.__renderReady === true'
-    );
-
-    const r2PublicUrl = environment.R2_PUBLIC_URL || '';
-
-    const screenshots: Array<{
-      timestamp: number;
-      offsetMs: number;
-      eventType: string;
-      description: string;
-      r2Key: string;
-      url: string;
-      clickPosition?: { x: number; y: number };
-    }> = [];
-
-    for (const moment of targetMoments) {
-      try {
-        // CRITICAL FIX: rrweb-player.goto() expects offset in ms from first event,
-        // not absolute timestamps. The offset is already calculated.
-        await page.evaluate(
-          (offsetMs: number) => {
-            const player = (window as any).__rrwebPlayer;
-            if (player && player.goto) {
-              player.goto(offsetMs, false);
-            }
-          },
-          moment.offsetMs
-        );
-
-        // Wait for render to complete - use requestAnimationFrame + a small buffer
-        await page.evaluate(() => {
-          return new Promise<void>(resolve => {
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                setTimeout(resolve, 100);
-              });
-            });
-          });
-        });
-
-        const screenshotBuffer = await page.screenshot({ type: 'png' });
-
-        const r2Key = `screenshots/${project.id}/${validatedData.sessionId}/${moment.timestamp}.png`;
-        await environment.R2_BUCKET.put(r2Key, screenshotBuffer, {
-          httpMetadata: { contentType: 'image/png' },
-        });
-
-        const screenshotId = generateId('rscr');
-        await database
-          .insert(replayScreenshots)
-          .values({
-            id: screenshotId,
-            projectId: project.id,
-            sessionId: validatedData.sessionId,
-            r2Key,
-            timestamp: moment.timestamp,
-            eventType: moment.eventType,
-            viewportWidth: viewport.width,
-            viewportHeight: viewport.height,
-          })
-          .run();
-
-        screenshots.push({
-          timestamp: moment.timestamp,
-          offsetMs: moment.offsetMs,
-          eventType: moment.eventType,
-          description: moment.description,
-          r2Key,
-          url: r2PublicUrl ? `${r2PublicUrl}/${r2Key}` : r2Key,
-          clickPosition: moment.clickData
-            ? { x: moment.clickData.x, y: moment.clickData.y }
-            : undefined,
-        });
-      } catch (screenshotError) {
-        logger.error(
-          { error: screenshotError, timestamp: moment.timestamp },
-          'Failed to capture screenshot at timestamp'
-        );
-      }
-    }
-
-    await browser.close();
-
-    logger.info(
-      { screenshotCount: screenshots.length },
-      'Replay render complete'
-    );
 
     return new Response(
       JSON.stringify({
         success: true,
-        viewport,
-        screenshots,
+        viewport: result.viewport,
+        screenshots: result.screenshots,
       }),
       {
         status: 200,
