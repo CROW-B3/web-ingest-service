@@ -66,6 +66,13 @@
         "binding": "WEB_SESSION_EXPORT",
       },
     ],
+    "consumers": [
+      {
+        "queue": "crow-web-session-export",
+        "max_batch_size": 1,
+        "max_retries": 3,
+      },
+    ],
   },
   "logpush": true,
   "placement": { "mode": "smart" },
@@ -151,6 +158,13 @@
           {
             "queue": "crow-web-session-export-dev",
             "binding": "WEB_SESSION_EXPORT",
+          },
+        ],
+        "consumers": [
+          {
+            "queue": "crow-web-session-export-dev",
+            "max_batch_size": 1,
+            "max_retries": 3,
           },
         ],
       },
