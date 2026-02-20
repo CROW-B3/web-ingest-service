@@ -1,14 +1,8 @@
 import { instrument } from '@microlabs/otel-cf-workers';
 import { DurableObject } from 'cloudflare:workers';
 import { handleBatch } from './handlers/batch';
-import { handleQueueBatch } from './handlers/queue-consumer';
 import { handleReplayBatch } from './handlers/replay';
-import {
-  handleGetReplayScreenshots,
-  handleReplayRender,
-} from './handlers/replay-render';
 import { handleSessionEnd, handleSessionStart } from './handlers/session';
-import { handleGetSessionTimeline } from './handlers/session-timeline';
 import { handleTrack } from './handlers/track';
 import { createOtelConfig } from './lib/otel';
 import { corsHeaders, handleCorsPreFlight } from './middleware/cors';
@@ -69,28 +63,6 @@ function isReplayBatchRequest(pathname: string, method: string): boolean {
   return pathname === '/replay/batch' && method === 'POST';
 }
 
-function isReplayRenderRequest(pathname: string, method: string): boolean {
-  return pathname === '/replay/render' && method === 'POST';
-}
-
-function parseReplayScreenshotsSessionId(
-  pathname: string,
-  method: string
-): string | null {
-  if (method !== 'GET') return null;
-  const match = pathname.match(/^\/replay\/screenshots\/([^/]+)$/);
-  return match ? match[1] : null;
-}
-
-function parseSessionTimelineId(
-  pathname: string,
-  method: string
-): string | null {
-  if (method !== 'GET') return null;
-  const match = pathname.match(/^\/session\/timeline\/([^/]+)$/);
-  return match ? match[1] : null;
-}
-
 async function handleIncomingRequest(
   request: Request,
   env: Env
@@ -131,23 +103,6 @@ async function handleIncomingRequest(
     return handleReplayBatch(request, env);
   }
 
-  if (isReplayRenderRequest(pathname, method)) {
-    return handleReplayRender(request, env);
-  }
-
-  const screenshotsSessionId = parseReplayScreenshotsSessionId(
-    pathname,
-    method
-  );
-  if (screenshotsSessionId) {
-    return handleGetReplayScreenshots(request, env, screenshotsSessionId);
-  }
-
-  const timelineSessionId = parseSessionTimelineId(pathname, method);
-  if (timelineSessionId) {
-    return handleGetSessionTimeline(request, env, timelineSessionId);
-  }
-
   logger.warn({ method, pathname }, 'Route not found');
   return createNotFoundResponse();
 }
@@ -155,9 +110,6 @@ async function handleIncomingRequest(
 const handler = {
   async fetch(request: Request, env: Env): Promise<Response> {
     return handleIncomingRequest(request, env);
-  },
-  async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
-    await handleQueueBatch(batch as MessageBatch<any>, env);
   },
 };
 
