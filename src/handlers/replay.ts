@@ -1,65 +1,26 @@
-import { eq } from 'drizzle-orm';
+import type { DatabaseClient } from '../db/client';
 import { createDatabaseClient, generateId } from '../db/client';
-import { projects, replayChunks, sessions } from '../db/schema';
-import { corsHeaders } from '../middleware/cors';
+import { replayChunks } from '../db/schema';
+import { findProjectByApiKey } from '../repositories/project-repository';
+import {
+  findSessionById,
+  markSessionHasReplay,
+} from '../repositories/session-repository';
 import { logger } from '../utils/logger';
+import {
+  createErrorResponse,
+  createSuccessResponse,
+  createValidationErrorResponse,
+} from '../utils/responses';
 import { replayBatchRequestSchema } from '../validation/schemas';
 
 const FIVE_MEGABYTES = 5 * 1024 * 1024;
 
-function createErrorResponse(
-  errorMessage: string,
-  statusCode: number
-): Response {
-  return new Response(
-    JSON.stringify({ success: false, errors: [errorMessage] }),
-    {
-      status: statusCode,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
-    }
+function isPayloadTooLarge(request: Request): boolean {
+  const contentLength = request.headers.get('content-length');
+  return Boolean(
+    contentLength && Number.parseInt(contentLength, 10) > FIVE_MEGABYTES
   );
-}
-
-function createValidationErrorResponse(validationErrors: any): Response {
-  return new Response(
-    JSON.stringify({
-      success: false,
-      errors: [validationErrors],
-    }),
-    {
-      status: 400,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
-    }
-  );
-}
-
-function createSuccessResponse(chunkId: string): Response {
-  return new Response(
-    JSON.stringify({
-      success: true,
-      chunkId,
-    }),
-    {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
-    }
-  );
-}
-
-async function findProjectByApiKey(database: any, apiKey: string) {
-  return database
-    .select()
-    .from(projects)
-    .where(eq(projects.apiKey, apiKey))
-    .get();
-}
-
-async function findSessionById(database: any, sessionId: string) {
-  return database
-    .select()
-    .from(sessions)
-    .where(eq(sessions.id, sessionId))
-    .get();
 }
 
 function buildR2Key(
@@ -73,9 +34,9 @@ function buildR2Key(
 async function storeReplayChunkInR2(
   r2Bucket: R2Bucket,
   r2Key: string,
-  events: any[]
+  replayEvents: unknown[]
 ): Promise<number> {
-  const json = JSON.stringify(events);
+  const json = JSON.stringify(replayEvents);
   const encoded = new TextEncoder().encode(json);
   await r2Bucket.put(r2Key, encoded, {
     httpMetadata: { contentType: 'application/json' },
@@ -83,14 +44,14 @@ async function storeReplayChunkInR2(
   return encoded.byteLength;
 }
 
-function getTimestampRange(events: any[]): {
+function getTimestampRange(replayEvents: any[]): {
   startTimestamp: number;
   endTimestamp: number;
 } {
   let startTimestamp = Infinity;
   let endTimestamp = -Infinity;
 
-  for (const event of events) {
+  for (const event of replayEvents) {
     const ts = event.timestamp ?? 0;
     if (ts < startTimestamp) startTimestamp = ts;
     if (ts > endTimestamp) endTimestamp = ts;
@@ -102,15 +63,42 @@ function getTimestampRange(events: any[]): {
   return { startTimestamp, endTimestamp };
 }
 
-async function markSessionHasReplay(
-  database: any,
-  sessionId: string
-): Promise<void> {
+// Stores replay events to R2 and records metadata in the database
+async function storeAndRecordReplayChunk(
+  database: DatabaseClient,
+  r2Bucket: R2Bucket,
+  projectId: string,
+  sessionId: string,
+  chunkIndex: number,
+  replayEvents: unknown[]
+): Promise<string> {
+  const r2Key = buildR2Key(projectId, sessionId, chunkIndex);
+  const sizeBytes = await storeReplayChunkInR2(r2Bucket, r2Key, replayEvents);
+  const { startTimestamp, endTimestamp } = getTimestampRange(replayEvents);
+
+  const chunkId = generateId('rchk');
   await database
-    .update(sessions)
-    .set({ hasReplay: true })
-    .where(eq(sessions.id, sessionId))
+    .insert(replayChunks)
+    .values({
+      id: chunkId,
+      projectId,
+      sessionId,
+      chunkIndex,
+      r2Key,
+      eventCount: replayEvents.length,
+      sizeBytes,
+      startTimestamp,
+      endTimestamp,
+    })
     .run();
+
+  if (chunkIndex === 0) {
+    await markSessionHasReplay(database, sessionId);
+  }
+
+  logger.info({ chunkId, r2Key, sizeBytes }, 'Replay chunk stored');
+
+  return chunkId;
 }
 
 export async function handleReplayBatch(
@@ -118,8 +106,7 @@ export async function handleReplayBatch(
   environment: Env
 ): Promise<Response> {
   try {
-    const contentLength = request.headers.get('content-length');
-    if (contentLength && parseInt(contentLength, 10) > FIVE_MEGABYTES) {
+    if (isPayloadTooLarge(request)) {
       return createErrorResponse('Payload too large. Maximum 5MB.', 413);
     }
 
@@ -144,68 +131,30 @@ export async function handleReplayBatch(
     );
 
     if (!project) {
-      logger.warn(
-        { projectId: validatedData.projectId },
-        'Invalid project ID'
-      );
+      logger.warn({ projectId: validatedData.projectId }, 'Invalid project ID');
       return createErrorResponse('Invalid project ID', 401);
     }
 
     const session = await findSessionById(database, validatedData.sessionId);
 
     if (!session) {
-      logger.warn(
-        { sessionId: validatedData.sessionId },
-        'Session not found'
-      );
+      logger.warn({ sessionId: validatedData.sessionId }, 'Session not found');
       return createErrorResponse(
         'Session not found. Please start a session first.',
         404
       );
     }
 
-    const r2Key = buildR2Key(
+    const chunkId = await storeAndRecordReplayChunk(
+      database,
+      environment.R2_BUCKET,
       project.id,
       validatedData.sessionId,
-      validatedData.chunkIndex
-    );
-
-    const sizeBytes = await storeReplayChunkInR2(
-      environment.R2_BUCKET,
-      r2Key,
+      validatedData.chunkIndex,
       validatedData.events
     );
 
-    const { startTimestamp, endTimestamp } = getTimestampRange(
-      validatedData.events
-    );
-
-    const chunkId = generateId('rchk');
-    await database
-      .insert(replayChunks)
-      .values({
-        id: chunkId,
-        projectId: project.id,
-        sessionId: validatedData.sessionId,
-        chunkIndex: validatedData.chunkIndex,
-        r2Key,
-        eventCount: validatedData.events.length,
-        sizeBytes,
-        startTimestamp,
-        endTimestamp,
-      })
-      .run();
-
-    if (validatedData.chunkIndex === 0) {
-      await markSessionHasReplay(database, validatedData.sessionId);
-    }
-
-    logger.info(
-      { chunkId, r2Key, sizeBytes },
-      'Replay chunk stored'
-    );
-
-    return createSuccessResponse(chunkId);
+    return createSuccessResponse({ chunkId });
   } catch (error) {
     logger.error({ error }, 'Error processing replay batch');
 
