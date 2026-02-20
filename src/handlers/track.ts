@@ -9,6 +9,7 @@ import {
   createSuccessResponse,
   createValidationErrorResponse,
 } from '../utils/responses';
+import { shouldStoreEvent } from '../validation/event-filters';
 import { trackRequestSchema } from '../validation/schemas';
 
 export async function handleTrack(
@@ -41,6 +42,10 @@ export async function handleTrack(
         'Session not found. Please start a session first.',
         404
       );
+    }
+
+    if (!shouldStoreEvent(validatedData.event.type)) {
+      return createSuccessResponse({ eventId: null, skipped: true });
     }
 
     const userId = await resolveUserId(
