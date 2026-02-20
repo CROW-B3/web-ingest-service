@@ -15,6 +15,7 @@ import {
   createSuccessResponse,
   createValidationErrorResponse,
 } from '../utils/responses';
+import { shouldStoreEvent } from '../validation/event-filters';
 import { batchRequestSchema } from '../validation/schemas';
 
 interface BatchEventError {
@@ -92,7 +93,10 @@ async function processBatchEvents(
   anonymousId: string,
   eventsList: any[]
 ): Promise<BatchProcessingResult> {
-  const processingPromises = eventsList.map((event, index) =>
+  const storableEvents = eventsList.filter(e => shouldStoreEvent(e.type));
+  const skippedCount = eventsList.length - storableEvents.length;
+
+  const processingPromises = storableEvents.map((event, index) =>
     processSingleBatchEvent(
       database,
       projectId,
@@ -110,7 +114,7 @@ async function processBatchEvents(
   );
 
   return {
-    processed: results.length - errors.length,
+    processed: results.length - errors.length + skippedCount,
     failed: errors.length,
     errors,
   };
