@@ -302,38 +302,6 @@ export async function handleSessionStart(
   }
 }
 
-async function enqueueScreenshotGenerationIfReplayExists(
-  database: any,
-  environment: Env,
-  sessionId: string,
-  projectId: string
-): Promise<void> {
-  try {
-    const session = await database
-      .select({ hasReplay: sessions.hasReplay })
-      .from(sessions)
-      .where(eq(sessions.id, sessionId))
-      .get();
-
-    if (!session?.hasReplay) {
-      logger.info({ sessionId }, 'No replay data, skipping screenshot queue');
-      return;
-    }
-
-    await environment.WEB_SESSION_EXPORT.send({
-      projectId,
-      sessionId,
-    });
-
-    logger.info({ sessionId }, 'Enqueued screenshot generation');
-  } catch (error) {
-    logger.error(
-      { error, sessionId },
-      'Failed to enqueue screenshot generation'
-    );
-  }
-}
-
 export async function handleSessionEnd(
   request: Request,
   environment: Env
@@ -367,13 +335,6 @@ export async function handleSessionEnd(
       validatedData.sessionId,
       validatedData.duration,
       validatedData.exitContext
-    );
-
-    await enqueueScreenshotGenerationIfReplayExists(
-      database,
-      environment,
-      validatedData.sessionId,
-      project.id
     );
 
     logger.info({ sessionId: validatedData.sessionId }, 'Session ended');

@@ -111,12 +111,6 @@ export const replayBatchRequestSchema = z.object({
   timestamp: z.number(),
 });
 
-export const replayRenderRequestSchema = z.object({
-  projectId: z.string(),
-  sessionId: z.string(),
-  timestamps: z.array(z.number()).optional(),
-});
-
 export type User = z.infer<typeof userSchema>;
 export type ScreenSize = z.infer<typeof screenSizeSchema>;
 export type Event = z.infer<typeof eventSchema>;
@@ -126,4 +120,3 @@ export type BatchRequest = z.infer<typeof batchRequestSchema>;
 export type SessionStartRequest = z.infer<typeof sessionStartRequestSchema>;
 export type SessionEndRequest = z.infer<typeof sessionEndRequestSchema>;
 export type ReplayBatchRequest = z.infer<typeof replayBatchRequestSchema>;
-export type ReplayRenderRequest = z.infer<typeof replayRenderRequestSchema>;
