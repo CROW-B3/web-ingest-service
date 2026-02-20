@@ -1,12 +1,20 @@
-import { eq } from 'drizzle-orm';
+import type { DatabaseClient } from '../db/client';
 import { createDatabaseClient, generateId } from '../db/client';
-import { events, projects, sessions, users } from '../db/schema';
-import { corsHeaders } from '../middleware/cors';
+import { events } from '../db/schema';
+import { findProjectByApiKey } from '../repositories/project-repository';
+import { findSessionById } from '../repositories/session-repository';
+import { resolveUserId } from '../repositories/user-repository';
 import { logger } from '../utils/logger';
 import {
   validateBatchSize,
   validateRequestSize,
 } from '../utils/payload-limits';
+import {
+  createErrorResponse,
+  createPayloadTooLargeResponse,
+  createSuccessResponse,
+  createValidationErrorResponse,
+} from '../utils/responses';
 import { batchRequestSchema } from '../validation/schemas';
 
 interface BatchEventError {
@@ -20,123 +28,8 @@ interface BatchProcessingResult {
   errors: BatchEventError[];
 }
 
-function createErrorResponse(
-  errorMessage: string,
-  statusCode: number
-): Response {
-  return new Response(
-    JSON.stringify({ success: false, errors: [errorMessage] }),
-    {
-      status: statusCode,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
-    }
-  );
-}
-
-function createValidationErrorResponse(validationErrors: any): Response {
-  return new Response(
-    JSON.stringify({
-      success: false,
-      errors: [validationErrors],
-    }),
-    {
-      status: 400,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
-    }
-  );
-}
-
-function createPayloadTooLargeResponse(errors: string[]): Response {
-  return new Response(
-    JSON.stringify({
-      success: false,
-      errors,
-    }),
-    {
-      status: 413,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
-    }
-  );
-}
-
-function createBatchSuccessResponse(result: BatchProcessingResult): Response {
-  const responseBody: any = {
-    success: result.failed === 0,
-    processed: result.processed,
-    failed: result.failed,
-  };
-
-  if (result.errors.length > 0) {
-    responseBody.errors = result.errors;
-  }
-
-  return new Response(JSON.stringify(responseBody), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders },
-  });
-}
-
-async function findProjectByApiKey(database: any, apiKey: string) {
-  return database
-    .select()
-    .from(projects)
-    .where(eq(projects.apiKey, apiKey))
-    .get();
-}
-
-async function findSessionById(database: any, sessionId: string) {
-  return database
-    .select()
-    .from(sessions)
-    .where(eq(sessions.id, sessionId))
-    .get();
-}
-
-async function findUserByAnonymousId(database: any, anonymousId: string) {
-  return database
-    .select()
-    .from(users)
-    .where(eq(users.anonymousId, anonymousId))
-    .get();
-}
-
-async function createNewUser(
-  database: any,
-  projectId: string,
-  anonymousId: string
-): Promise<string> {
-  const userId = generateId('user');
-  await database
-    .insert(users)
-    .values({
-      id: userId,
-      projectId,
-      anonymousId,
-    })
-    .run();
-  return userId;
-}
-
-async function getUserIdOrCreateUser(
-  database: any,
-  projectId: string,
-  userAnonymousId: string | undefined
-): Promise<string | null> {
-  if (!userAnonymousId) {
-    return null;
-  }
-
-  const existingUser = await findUserByAnonymousId(database, userAnonymousId);
-
-  if (existingUser) {
-    return existingUser.id;
-  }
-
-  return createNewUser(database, projectId, userAnonymousId);
-}
-
 async function insertSingleBatchEvent(
-  database: any,
+  database: DatabaseClient,
   projectId: string,
   sessionId: string,
   userId: string | null,
@@ -161,7 +54,7 @@ async function insertSingleBatchEvent(
 }
 
 async function processSingleBatchEvent(
-  database: any,
+  database: DatabaseClient,
   projectId: string,
   sessionId: string,
   userId: string | null,
@@ -192,7 +85,7 @@ async function processSingleBatchEvent(
 }
 
 async function processBatchEvents(
-  database: any,
+  database: DatabaseClient,
   projectId: string,
   sessionId: string,
   userId: string | null,
@@ -212,14 +105,31 @@ async function processBatchEvents(
   );
 
   const results = await Promise.all(processingPromises);
-
   const errors = results.filter(
     (result): result is BatchEventError => result !== null
   );
-  const processed = results.length - errors.length;
-  const failed = errors.length;
 
-  return { processed, failed, errors };
+  return {
+    processed: results.length - errors.length,
+    failed: errors.length,
+    errors,
+  };
+}
+
+function buildBatchSuccessPayload(
+  result: BatchProcessingResult
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    success: result.failed === 0,
+    processed: result.processed,
+    failed: result.failed,
+  };
+
+  if (result.errors.length > 0) {
+    payload.errors = result.errors;
+  }
+
+  return payload;
 }
 
 export async function handleBatch(
@@ -232,9 +142,7 @@ export async function handleBatch(
     const requestSizeValidation = validateRequestSize(requestBody);
     if (!requestSizeValidation.isValid) {
       logger.warn(
-        {
-          errors: requestSizeValidation.errors,
-        },
+        { errors: requestSizeValidation.errors },
         'Request size validation failed'
       );
       return createPayloadTooLargeResponse(requestSizeValidation.errors);
@@ -284,7 +192,7 @@ export async function handleBatch(
       );
     }
 
-    const userId = await getUserIdOrCreateUser(
+    const userId = await resolveUserId(
       database,
       project.id,
       validatedData.user?.anonymousId
@@ -309,7 +217,7 @@ export async function handleBatch(
       'Batch processing complete'
     );
 
-    return createBatchSuccessResponse(processingResult);
+    return createSuccessResponse(buildBatchSuccessPayload(processingResult));
   } catch (error) {
     logger.error({ error }, 'Error processing batch');
 

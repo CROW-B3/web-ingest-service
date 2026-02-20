@@ -34,6 +34,7 @@ export const eventSchema = z.object({
   ]),
   timestamp: z.number(),
   url: z.string().url(),
+  referrer: z.string().optional(),
   data: z.record(z.string(), z.any()).optional(),
   userAgent: z.string().optional(),
   screenSize: screenSizeSchema.optional(),
