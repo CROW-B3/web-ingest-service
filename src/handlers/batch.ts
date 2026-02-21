@@ -1,9 +1,7 @@
 import type { DatabaseClient } from '../db/client';
 import { createDatabaseClient, generateId } from '../db/client';
 import { events } from '../db/schema';
-import { findProjectByApiKey } from '../repositories/project-repository';
 import { findSessionById } from '../repositories/session-repository';
-import { resolveUserId } from '../repositories/user-repository';
 import { logger } from '../utils/logger';
 import {
   validateBatchSize,
@@ -31,10 +29,7 @@ interface BatchProcessingResult {
 
 async function insertSingleBatchEvent(
   database: DatabaseClient,
-  projectId: string,
   sessionId: string,
-  userId: string | null,
-  anonymousId: string,
   eventData: any
 ): Promise<void> {
   const eventId = generateId('evt');
@@ -42,10 +37,7 @@ async function insertSingleBatchEvent(
     .insert(events)
     .values({
       id: eventId,
-      projectId,
       sessionId,
-      userId,
-      anonymousId,
       type: eventData.type,
       url: eventData.url,
       timestamp: eventData.timestamp,
@@ -56,20 +48,14 @@ async function insertSingleBatchEvent(
 
 async function processSingleBatchEvent(
   database: DatabaseClient,
-  projectId: string,
   sessionId: string,
-  userId: string | null,
-  anonymousId: string,
   eventData: any,
   eventIndex: number
 ): Promise<BatchEventError | null> {
   try {
     await insertSingleBatchEvent(
       database,
-      projectId,
       sessionId,
-      userId,
-      anonymousId,
       eventData
     );
     return null;
@@ -87,10 +73,7 @@ async function processSingleBatchEvent(
 
 async function processBatchEvents(
   database: DatabaseClient,
-  projectId: string,
   sessionId: string,
-  userId: string | null,
-  anonymousId: string,
   eventsList: any[]
 ): Promise<BatchProcessingResult> {
   const storableEvents = eventsList.filter(e => shouldStoreEvent(e.type));
@@ -99,10 +82,7 @@ async function processBatchEvents(
   const processingPromises = storableEvents.map((event, index) =>
     processSingleBatchEvent(
       database,
-      projectId,
       sessionId,
-      userId,
-      anonymousId,
       event,
       index
     )
@@ -168,23 +148,13 @@ export async function handleBatch(
 
     logger.info(
       {
-        projectId: validatedData.projectId,
+        sessionId: validatedData.sessionId,
         eventCount: validatedData.events.length,
       },
       'Batch event request'
     );
 
     const database = createDatabaseClient(environment.DB);
-
-    const project = await findProjectByApiKey(
-      database,
-      validatedData.projectId
-    );
-
-    if (!project) {
-      logger.warn({ projectId: validatedData.projectId }, 'Invalid project ID');
-      return createErrorResponse('Invalid project ID', 401);
-    }
 
     const session = await findSessionById(database, validatedData.sessionId);
 
@@ -196,20 +166,9 @@ export async function handleBatch(
       );
     }
 
-    const userId = await resolveUserId(
-      database,
-      project.id,
-      validatedData.user?.anonymousId
-    );
-
-    const anonymousId = validatedData.user?.anonymousId || 'unknown';
-
     const processingResult = await processBatchEvents(
       database,
-      project.id,
       validatedData.sessionId,
-      userId,
-      anonymousId,
       validatedData.events
     );
 

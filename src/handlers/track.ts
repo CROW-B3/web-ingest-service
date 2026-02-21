@@ -1,8 +1,6 @@
 import { createDatabaseClient } from '../db/client';
 import { insertTrackingEvent } from '../repositories/event-repository';
-import { findProjectByApiKey } from '../repositories/project-repository';
 import { findSessionById } from '../repositories/session-repository';
-import { resolveUserId } from '../repositories/user-repository';
 import { logger } from '../utils/logger';
 import {
   createErrorResponse,
@@ -20,19 +18,9 @@ export async function handleTrack(
     const requestBody = await request.json();
     const validatedData = trackRequestSchema.parse(requestBody);
 
-    logger.info({ projectId: validatedData.projectId }, 'Track event request');
+    logger.info({ sessionId: validatedData.sessionId }, 'Track event request');
 
     const database = createDatabaseClient(environment.DB);
-
-    const project = await findProjectByApiKey(
-      database,
-      validatedData.projectId
-    );
-
-    if (!project) {
-      logger.warn({ projectId: validatedData.projectId }, 'Invalid project ID');
-      return createErrorResponse('Invalid project ID', 401);
-    }
 
     const session = await findSessionById(database, validatedData.sessionId);
 
@@ -48,18 +36,9 @@ export async function handleTrack(
       return createSuccessResponse({ eventId: null, skipped: true });
     }
 
-    const userId = await resolveUserId(
-      database,
-      project.id,
-      validatedData.user?.anonymousId
-    );
-
     const eventId = await insertTrackingEvent(
       database,
-      project.id,
       validatedData.sessionId,
-      userId,
-      validatedData.user?.anonymousId || 'unknown',
       validatedData.event
     );
 
