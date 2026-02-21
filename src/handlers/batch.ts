@@ -2,6 +2,7 @@ import type { DatabaseClient } from '../db/client';
 import { createDatabaseClient, generateId } from '../db/client';
 import { events } from '../db/schema';
 import { findSessionById } from '../repositories/session-repository';
+import { getSessionStub } from '../utils/durable-object';
 import { logger } from '../utils/logger';
 import {
   validateBatchSize,
@@ -53,11 +54,7 @@ async function processSingleBatchEvent(
   eventIndex: number
 ): Promise<BatchEventError | null> {
   try {
-    await insertSingleBatchEvent(
-      database,
-      sessionId,
-      eventData
-    );
+    await insertSingleBatchEvent(database, sessionId, eventData);
     return null;
   } catch (error) {
     logger.error(
@@ -80,12 +77,7 @@ async function processBatchEvents(
   const skippedCount = eventsList.length - storableEvents.length;
 
   const processingPromises = storableEvents.map((event, index) =>
-    processSingleBatchEvent(
-      database,
-      sessionId,
-      event,
-      index
-    )
+    processSingleBatchEvent(database, sessionId, event, index)
   );
 
   const results = await Promise.all(processingPromises);
@@ -165,6 +157,9 @@ export async function handleBatch(
         404
       );
     }
+
+    const stub = getSessionStub(environment, validatedData.sessionId);
+    await stub.extendSession();
 
     const processingResult = await processBatchEvents(
       database,

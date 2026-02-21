@@ -8,13 +8,52 @@ import { createOtelConfig } from './lib/otel';
 import { corsHeaders, handleCorsPreFlight } from './middleware/cors';
 import { logger } from './utils/logger';
 
+export interface SessionStorageData {
+  sessionId: string;
+  startedAt: string;
+  initialUrl: string;
+  userAgent: string;
+  deviceType: string;
+  browser: string;
+  operatingSystem: string;
+  lastActivityAt: string;
+}
+
+const ONE_HOUR_MS = 3_600_000;
+
 export class CrowWebSession extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
   }
 
-  async sayHello(name: string): Promise<string> {
-    return `Hello, ${name}!`;
+  async initializeSession(data: SessionStorageData): Promise<void> {
+    await this.ctx.storage.put('session', data);
+    await this.ctx.storage.setAlarm(Date.now() + ONE_HOUR_MS);
+    logger.info(
+      { sessionId: data.sessionId },
+      'DO: Session initialized with alarm'
+    );
+  }
+
+  async extendSession(): Promise<void> {
+    const session = await this.ctx.storage.get<SessionStorageData>('session');
+    if (session) {
+      session.lastActivityAt = new Date().toISOString();
+      await this.ctx.storage.put('session', session);
+      await this.ctx.storage.setAlarm(Date.now() + ONE_HOUR_MS);
+      logger.info(
+        { sessionId: session.sessionId },
+        'DO: Session alarm extended'
+      );
+    }
+  }
+
+  async alarm(): Promise<void> {
+    const session = await this.ctx.storage.get<SessionStorageData>('session');
+    logger.info(
+      { sessionId: session?.sessionId },
+      'DO: Alarm fired for session'
+    );
   }
 }
 
