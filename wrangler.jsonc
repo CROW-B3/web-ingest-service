@@ -50,19 +50,10 @@
     "R2_ENDPOINT": "https://8f0203259905d8923687286c84921e6c.r2.cloudflarestorage.com",
     "R2_BUCKET_NAME": "crow-web-ingest-service-store-dev",
     "R2_PUBLIC_URL": "https://pub-e64a25eb7e0f46fab0acd0c47eb44194.r2.dev",
-    "R2_UPLOAD_PREFIX": "screenshots",
     "AXIOM_DATASET": "crow-traces"
   },
   "observability": {
     "enabled": true,
-  },
-  "queues": {
-    "producers": [
-      {
-        "queue": "crow-web-session-export",
-        "binding": "WEB_SESSION_EXPORT",
-      },
-    ],
   },
   "logpush": true,
   "placement": { "mode": "smart" },
@@ -89,7 +80,6 @@
         "R2_ENDPOINT": "https://8f0203259905d8923687286c84921e6c.r2.cloudflarestorage.com",
         "R2_BUCKET_NAME": "crow-web-ingest-service-store-local",
         "R2_PUBLIC_URL": "https://pub-e64a25eb7e0f46fab0acd0c47eb44194.r2.dev",
-        "R2_UPLOAD_PREFIX": "screenshots",
         "AXIOM_DATASET": "crow-traces"
       }
     },
@@ -114,7 +104,6 @@
         "R2_ENDPOINT": "https://8f0203259905d8923687286c84921e6c.r2.cloudflarestorage.com",
         "R2_BUCKET_NAME": "crow-web-ingest-service-store-dev",
         "R2_PUBLIC_URL": "https://pub-e64a25eb7e0f46fab0acd0c47eb44194.r2.dev",
-        "R2_UPLOAD_PREFIX": "screenshots",
         "AXIOM_DATASET": "crow-traces"
       },
       "routes": [
@@ -143,14 +132,6 @@
           },
         ],
       },
-      "queues": {
-        "producers": [
-          {
-            "queue": "crow-web-session-export-dev",
-            "binding": "WEB_SESSION_EXPORT",
-          },
-        ],
-      },
     },
     "production": {
       "name": "crow-web-ingest-worker",
@@ -173,7 +154,6 @@
         "R2_ENDPOINT": "https://8f0203259905d8923687286c84921e6c.r2.cloudflarestorage.com",
         "R2_BUCKET_NAME": "crow-web-ingest-service-store",
         "R2_PUBLIC_URL": "https://pub-703de4c152d04451ad7e562f1cedfca9.r2.dev",
-        "R2_UPLOAD_PREFIX": "screenshots",
         "AXIOM_DATASET": "crow-traces"
       }
     },
