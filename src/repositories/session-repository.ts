@@ -26,9 +26,6 @@ export async function markSessionHasReplay(
 
 interface SessionInsertData {
   sessionId: string;
-  projectId: string;
-  userId: string;
-  anonymousId: string;
   initialUrl: string;
   referrer: string | undefined;
   userAgent: string;
@@ -47,9 +44,6 @@ export async function insertNewSession(
     .insert(sessions)
     .values({
       id: sessionData.sessionId,
-      projectId: sessionData.projectId,
-      userId: sessionData.userId,
-      anonymousId: sessionData.anonymousId,
       initialUrl: sessionData.initialUrl,
       referrer: sessionData.referrer,
       userAgent: sessionData.userAgent,

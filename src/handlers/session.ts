@@ -1,10 +1,8 @@
 import { createDatabaseClient } from '../db/client';
-import { findProjectByApiKey } from '../repositories/project-repository';
 import {
   insertNewSession,
   updateSessionEndData,
 } from '../repositories/session-repository';
-import { resolveUserIdForSession } from '../repositories/user-repository';
 import { logger } from '../utils/logger';
 import {
   createErrorResponse,
@@ -64,7 +62,6 @@ export async function handleSessionStart(
 
     logger.info(
       {
-        projectId: validatedData.projectId,
         sessionId: validatedData.sessionId,
       },
       'Session start request'
@@ -72,29 +69,10 @@ export async function handleSessionStart(
 
     const database = createDatabaseClient(environment.DB);
 
-    const project = await findProjectByApiKey(
-      database,
-      validatedData.projectId
-    );
-
-    if (!project) {
-      logger.warn({ projectId: validatedData.projectId }, 'Invalid project ID');
-      return createErrorResponse('Invalid project ID', 401);
-    }
-
-    const userId = await resolveUserIdForSession(
-      database,
-      project.id,
-      validatedData.user.anonymousId
-    );
-
     const userAgent = validatedData.context.userAgent;
 
     await insertNewSession(database, {
       sessionId: validatedData.sessionId,
-      projectId: project.id,
-      userId: validatedData.user.id || userId,
-      anonymousId: validatedData.user.anonymousId,
       initialUrl: validatedData.context.url,
       referrer: validatedData.context.referrer,
       userAgent,
@@ -134,23 +112,12 @@ export async function handleSessionEnd(
 
     logger.info(
       {
-        projectId: validatedData.projectId,
         sessionId: validatedData.sessionId,
       },
       'Session end request'
     );
 
     const database = createDatabaseClient(environment.DB);
-
-    const project = await findProjectByApiKey(
-      database,
-      validatedData.projectId
-    );
-
-    if (!project) {
-      logger.warn({ projectId: validatedData.projectId }, 'Invalid project ID');
-      return createErrorResponse('Invalid project ID', 401);
-    }
 
     await updateSessionEndData(
       database,
