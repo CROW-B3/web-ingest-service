@@ -1,10 +1,5 @@
 import { z } from 'zod';
 
-export const userSchema = z.object({
-  id: z.string().optional(),
-  anonymousId: z.string(),
-});
-
 export const screenSizeSchema = z.object({
   width: z.number(),
   height: z.number(),
@@ -50,25 +45,19 @@ export const contextSchema = z.object({
 });
 
 export const trackRequestSchema = z.object({
-  projectId: z.string(),
   sessionId: z.string(),
   event: eventSchema,
-  user: userSchema.optional(),
 });
 
 const maximumEventsPerBatchRequest = 100;
 
 export const batchRequestSchema = z.object({
-  projectId: z.string(),
   sessionId: z.string(),
   events: z.array(eventSchema).min(1).max(maximumEventsPerBatchRequest),
-  user: userSchema.optional(),
 });
 
 export const sessionStartRequestSchema = z.object({
-  projectId: z.string(),
   sessionId: z.string(),
-  user: userSchema,
   context: contextSchema,
 });
 
@@ -96,7 +85,6 @@ const exitContextSchema = z
   .optional();
 
 export const sessionEndRequestSchema = z.object({
-  projectId: z.string(),
   sessionId: z.string(),
   duration: z.number(),
   pageViews: z.number(),
@@ -105,14 +93,12 @@ export const sessionEndRequestSchema = z.object({
 });
 
 export const replayBatchRequestSchema = z.object({
-  projectId: z.string(),
   sessionId: z.string(),
   chunkIndex: z.number().int().min(0),
   events: z.array(z.any()).min(1).max(500),
   timestamp: z.number(),
 });
 
-export type User = z.infer<typeof userSchema>;
 export type ScreenSize = z.infer<typeof screenSizeSchema>;
 export type Event = z.infer<typeof eventSchema>;
 export type Context = z.infer<typeof contextSchema>;

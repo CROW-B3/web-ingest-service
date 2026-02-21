@@ -12,10 +12,7 @@ interface TrackingEventData {
 
 export async function insertTrackingEvent(
   database: DatabaseClient,
-  projectId: string,
   sessionId: string,
-  userId: string | null,
-  anonymousId: string,
   eventData: TrackingEventData
 ): Promise<string> {
   const eventId = generateId('evt');
@@ -23,10 +20,7 @@ export async function insertTrackingEvent(
     .insert(events)
     .values({
       id: eventId,
-      projectId,
       sessionId,
-      userId,
-      anonymousId,
       type: eventData.type,
       url: eventData.url,
       timestamp: eventData.timestamp,

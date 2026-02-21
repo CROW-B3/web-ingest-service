@@ -1,7 +1,6 @@
 import type { DatabaseClient } from '../db/client';
 import { createDatabaseClient, generateId } from '../db/client';
 import { replayChunks } from '../db/schema';
-import { findProjectByApiKey } from '../repositories/project-repository';
 import {
   findSessionById,
   markSessionHasReplay,
@@ -24,11 +23,10 @@ function isPayloadTooLarge(request: Request): boolean {
 }
 
 function buildR2Key(
-  projectId: string,
   sessionId: string,
   chunkIndex: number
 ): string {
-  return `replay/${projectId}/${sessionId}/chunk_${chunkIndex}.json`;
+  return `replay/${sessionId}/chunk_${chunkIndex}.json`;
 }
 
 async function storeReplayChunkInR2(
@@ -67,12 +65,11 @@ function getTimestampRange(replayEvents: any[]): {
 async function storeAndRecordReplayChunk(
   database: DatabaseClient,
   r2Bucket: R2Bucket,
-  projectId: string,
   sessionId: string,
   chunkIndex: number,
   replayEvents: unknown[]
 ): Promise<string> {
-  const r2Key = buildR2Key(projectId, sessionId, chunkIndex);
+  const r2Key = buildR2Key(sessionId, chunkIndex);
   const sizeBytes = await storeReplayChunkInR2(r2Bucket, r2Key, replayEvents);
   const { startTimestamp, endTimestamp } = getTimestampRange(replayEvents);
 
@@ -81,7 +78,6 @@ async function storeAndRecordReplayChunk(
     .insert(replayChunks)
     .values({
       id: chunkId,
-      projectId,
       sessionId,
       chunkIndex,
       r2Key,
@@ -115,7 +111,6 @@ export async function handleReplayBatch(
 
     logger.info(
       {
-        projectId: validatedData.projectId,
         sessionId: validatedData.sessionId,
         chunkIndex: validatedData.chunkIndex,
         eventCount: validatedData.events.length,
@@ -124,16 +119,6 @@ export async function handleReplayBatch(
     );
 
     const database = createDatabaseClient(environment.DB);
-
-    const project = await findProjectByApiKey(
-      database,
-      validatedData.projectId
-    );
-
-    if (!project) {
-      logger.warn({ projectId: validatedData.projectId }, 'Invalid project ID');
-      return createErrorResponse('Invalid project ID', 401);
-    }
 
     const session = await findSessionById(database, validatedData.sessionId);
 
@@ -148,7 +133,6 @@ export async function handleReplayBatch(
     const chunkId = await storeAndRecordReplayChunk(
       database,
       environment.R2_BUCKET,
-      project.id,
       validatedData.sessionId,
       validatedData.chunkIndex,
       validatedData.events
