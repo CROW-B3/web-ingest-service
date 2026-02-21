@@ -1,8 +1,18 @@
 import { instrument } from '@microlabs/otel-cf-workers';
 import { DurableObject } from 'cloudflare:workers';
 import { handleBatch } from './handlers/batch';
+import {
+  handleIngestSessionEnd,
+  handleIngestSessionEvent,
+  handleIngestSessionStart,
+} from './handlers/ingest';
 import { handleReplayBatch } from './handlers/replay';
 import { handleSessionEnd, handleSessionStart } from './handlers/session';
+import {
+  handleGetSessionEvents,
+  handleGetSessionReplay,
+  handleListSessionsForOrganization,
+} from './handlers/sessions';
 import { handleTrack } from './handlers/track';
 import { createOtelConfig } from './lib/otel';
 import { corsHeaders, handleCorsPreFlight } from './middleware/cors';
@@ -63,6 +73,36 @@ function isReplayBatchRequest(pathname: string, method: string): boolean {
   return pathname === '/replay/batch' && method === 'POST';
 }
 
+function isListSessionsRequest(pathname: string, method: string): boolean {
+  return /^\/sessions\/organization\/[^/]+$/.test(pathname) && method === 'GET';
+}
+
+function isGetSessionEventsRequest(pathname: string, method: string): boolean {
+  return /^\/sessions\/[^/]+\/events$/.test(pathname) && method === 'GET';
+}
+
+function isIngestSessionStartRequest(
+  pathname: string,
+  method: string
+): boolean {
+  return pathname === '/api/v1/ingest/session/start' && method === 'POST';
+}
+
+function isIngestSessionEventRequest(
+  pathname: string,
+  method: string
+): boolean {
+  return pathname === '/api/v1/ingest/session/event' && method === 'POST';
+}
+
+function isIngestSessionEndRequest(pathname: string, method: string): boolean {
+  return pathname === '/api/v1/ingest/session/end' && method === 'POST';
+}
+
+function isGetSessionReplayRequest(pathname: string, method: string): boolean {
+  return /^\/sessions\/[^/]+\/replay$/.test(pathname) && method === 'GET';
+}
+
 async function handleIncomingRequest(
   request: Request,
   env: Env
@@ -101,6 +141,30 @@ async function handleIncomingRequest(
 
   if (isReplayBatchRequest(pathname, method)) {
     return handleReplayBatch(request, env);
+  }
+
+  if (isListSessionsRequest(pathname, method)) {
+    return handleListSessionsForOrganization(request, env, pathname);
+  }
+
+  if (isGetSessionEventsRequest(pathname, method)) {
+    return handleGetSessionEvents(request, env, pathname);
+  }
+
+  if (isGetSessionReplayRequest(pathname, method)) {
+    return handleGetSessionReplay(request, env, pathname);
+  }
+
+  if (isIngestSessionStartRequest(pathname, method)) {
+    return handleIngestSessionStart(request, env);
+  }
+
+  if (isIngestSessionEventRequest(pathname, method)) {
+    return handleIngestSessionEvent(request, env);
+  }
+
+  if (isIngestSessionEndRequest(pathname, method)) {
+    return handleIngestSessionEnd(request, env);
   }
 
   logger.warn({ method, pathname }, 'Route not found');

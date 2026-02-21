@@ -1,5 +1,5 @@
 import type { DatabaseClient } from '../db/client';
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { sessions } from '../db/schema';
 
 export async function findSessionById(
@@ -54,6 +54,18 @@ export async function insertNewSession(
       operatingSystem: sessionData.operatingSystem,
     })
     .run();
+}
+
+export async function findSessionsByProjectId(
+  database: DatabaseClient,
+  projectId: string
+) {
+  return database
+    .select()
+    .from(sessions)
+    .where(eq(sessions.projectId, projectId))
+    .orderBy(desc(sessions.startedAt))
+    .all();
 }
 
 export async function updateSessionEndData(
