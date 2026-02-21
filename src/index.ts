@@ -1,6 +1,7 @@
 import { instrument } from '@microlabs/otel-cf-workers';
 import { DurableObject } from 'cloudflare:workers';
 import { handleBatch } from './handlers/batch';
+import { handleReplayBatch } from './handlers/replay';
 import { handleSessionEnd, handleSessionStart } from './handlers/session';
 import { handleTrack } from './handlers/track';
 import { createOtelConfig } from './lib/otel';
@@ -58,6 +59,10 @@ function isSessionEndRequest(pathname: string, method: string): boolean {
   return pathname === '/session/end' && method === 'POST';
 }
 
+function isReplayBatchRequest(pathname: string, method: string): boolean {
+  return pathname === '/replay/batch' && method === 'POST';
+}
+
 async function handleIncomingRequest(
   request: Request,
   env: Env
@@ -92,6 +97,10 @@ async function handleIncomingRequest(
 
   if (isSessionEndRequest(pathname, method)) {
     return handleSessionEnd(request, env);
+  }
+
+  if (isReplayBatchRequest(pathname, method)) {
+    return handleReplayBatch(request, env);
   }
 
   logger.warn({ method, pathname }, 'Route not found');
