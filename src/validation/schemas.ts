@@ -22,7 +22,6 @@ export const eventSchema = z.object({
     'add_to_cart',
     'variant_select',
     'image_zoom',
-    'context_snapshot',
     'performance',
     'web_vital',
     'api_error',
