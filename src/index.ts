@@ -8,13 +8,58 @@ import { createOtelConfig } from './lib/otel';
 import { corsHeaders, handleCorsPreFlight } from './middleware/cors';
 import { logger } from './utils/logger';
 
+export interface SessionStorageData {
+  sessionId: string;
+  startedAt: string;
+  initialUrl: string;
+  userAgent: string;
+  deviceType: string;
+  browser: string;
+  operatingSystem: string;
+  lastActivityAt: string;
+}
+
+const ONE_HOUR_MS = 1000 * 60 * 1;
+
 export class CrowWebSession extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
   }
 
-  async sayHello(name: string): Promise<string> {
-    return `Hello, ${name}!`;
+  async initializeSession(data: SessionStorageData): Promise<void> {
+    await this.ctx.storage.put('session', data);
+    await this.ctx.storage.setAlarm(Date.now() + ONE_HOUR_MS);
+    logger.info(
+      { sessionId: data.sessionId },
+      'DO: Session initialized with alarm'
+    );
+  }
+
+  async extendSession(): Promise<void> {
+    const session = await this.ctx.storage.get<SessionStorageData>('session');
+    if (session) {
+      session.lastActivityAt = new Date().toISOString();
+      await this.ctx.storage.put('session', session);
+      await this.ctx.storage.setAlarm(Date.now() + ONE_HOUR_MS);
+      logger.info(
+        { sessionId: session.sessionId },
+        'DO: Session alarm extended'
+      );
+    }
+  }
+
+  async alarm(): Promise<void> {
+    const session = await this.ctx.storage.get<SessionStorageData>('session');
+    if (session) {
+      await this.env.SESSION_EXPIRY_QUEUE.send({
+        sessionId: session.sessionId,
+        expiredAt: new Date().toISOString(),
+      });
+      logger.info(
+        { sessionId: session.sessionId },
+        'DO: Session expired, sent to queue'
+      );
+    }
   }
 }
 
@@ -110,6 +155,19 @@ async function handleIncomingRequest(
 const handler = {
   async fetch(request: Request, env: Env): Promise<Response> {
     return handleIncomingRequest(request, env);
+  },
+  async queue(batch: MessageBatch, _env: Env): Promise<void> {
+    for (const message of batch.messages) {
+      const { sessionId, expiredAt } = message.body as {
+        sessionId: string;
+        expiredAt: string;
+      };
+      logger.info(
+        { sessionId, expiredAt },
+        'Queue: Session expiry processed — hi!'
+      );
+      message.ack();
+    }
   },
 };
 

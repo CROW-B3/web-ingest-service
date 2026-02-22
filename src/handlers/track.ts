@@ -1,6 +1,7 @@
 import { createDatabaseClient } from '../db/client';
 import { insertTrackingEvent } from '../repositories/event-repository';
 import { findSessionById } from '../repositories/session-repository';
+import { getSessionStub } from '../utils/durable-object';
 import { logger } from '../utils/logger';
 import {
   createErrorResponse,
@@ -31,6 +32,9 @@ export async function handleTrack(
         404
       );
     }
+
+    const stub = getSessionStub(environment, validatedData.sessionId);
+    await stub.extendSession();
 
     if (!shouldStoreEvent(validatedData.event.type)) {
       return createSuccessResponse({ eventId: null, skipped: true });
