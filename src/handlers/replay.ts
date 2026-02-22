@@ -14,12 +14,12 @@ import {
 } from '../utils/responses';
 import { replayBatchRequestSchema } from '../validation/schemas';
 
-const FIVE_MEGABYTES = 5 * 1024 * 1024;
+const MAX_PAYLOAD_BYTES = 15 * 1024 * 1024; // 15MB — rrweb DOM snapshots can be large
 
 function isPayloadTooLarge(request: Request): boolean {
   const contentLength = request.headers.get('content-length');
   return Boolean(
-    contentLength && Number.parseInt(contentLength, 10) > FIVE_MEGABYTES
+    contentLength && Number.parseInt(contentLength, 10) > MAX_PAYLOAD_BYTES
   );
 }
 
@@ -101,7 +101,7 @@ export async function handleReplayBatch(
 ): Promise<Response> {
   try {
     if (isPayloadTooLarge(request)) {
-      return createErrorResponse('Payload too large. Maximum 5MB.', 413);
+      return createErrorResponse('Payload too large. Maximum 15MB.', 413);
     }
 
     const requestBody = await request.json();
