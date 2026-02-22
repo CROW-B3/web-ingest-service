@@ -1,11 +1,14 @@
 import { instrument } from '@microlabs/otel-cf-workers';
 import { DurableObject } from 'cloudflare:workers';
 import { handleBatch } from './handlers/batch';
+import { handleGetProcessedSession } from './handlers/processed-session';
 import { handleReplayBatch } from './handlers/replay';
+import { handleReplayViewer } from './handlers/replay-viewer';
 import { handleSessionEnd, handleSessionStart } from './handlers/session';
 import { handleTrack } from './handlers/track';
 import { createOtelConfig } from './lib/otel';
 import { corsHeaders, handleCorsPreFlight } from './middleware/cors';
+import { processExpiredSession } from './services/session-processor';
 import { logger } from './utils/logger';
 
 export interface SessionStorageData {
@@ -108,6 +111,24 @@ function isReplayBatchRequest(pathname: string, method: string): boolean {
   return pathname === '/replay/batch' && method === 'POST';
 }
 
+function parseReplayViewerRequest(
+  pathname: string,
+  method: string
+): string | null {
+  if (method !== 'GET') return null;
+  const match = pathname.match(/^\/internal\/replay-viewer\/(.+)$/);
+  return match ? match[1] : null;
+}
+
+function parseProcessedSessionRequest(
+  pathname: string,
+  method: string
+): string | null {
+  if (method !== 'GET') return null;
+  const match = pathname.match(/^\/session\/(.+)\/processed$/);
+  return match ? match[1] : null;
+}
+
 async function handleIncomingRequest(
   request: Request,
   env: Env
@@ -148,6 +169,16 @@ async function handleIncomingRequest(
     return handleReplayBatch(request, env);
   }
 
+  const replayViewerSessionId = parseReplayViewerRequest(pathname, method);
+  if (replayViewerSessionId) {
+    return handleReplayViewer(env, replayViewerSessionId);
+  }
+
+  const processedSessionId = parseProcessedSessionRequest(pathname, method);
+  if (processedSessionId) {
+    return handleGetProcessedSession(request, env, processedSessionId);
+  }
+
   logger.warn({ method, pathname }, 'Route not found');
   return createNotFoundResponse();
 }
@@ -156,7 +187,7 @@ const handler = {
   async fetch(request: Request, env: Env): Promise<Response> {
     return handleIncomingRequest(request, env);
   },
-  async queue(batch: MessageBatch, _env: Env): Promise<void> {
+  async queue(batch: MessageBatch, env: Env): Promise<void> {
     for (const message of batch.messages) {
       const { sessionId, expiredAt } = message.body as {
         sessionId: string;
@@ -164,9 +195,19 @@ const handler = {
       };
       logger.info(
         { sessionId, expiredAt },
-        'Queue: Session expiry processed — hi!'
+        'Queue: Processing expired session'
       );
-      message.ack();
+      try {
+        await processExpiredSession(sessionId, env);
+        message.ack();
+        logger.info({ sessionId }, 'Queue: Session processing completed');
+      } catch (error) {
+        logger.error(
+          { sessionId, error },
+          'Queue: Session processing failed, retrying'
+        );
+        message.retry();
+      }
     }
   },
 };

@@ -1,5 +1,11 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import {
+  index,
+  integer,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
 
 export const sessions = sqliteTable(
   'sessions',
@@ -84,9 +90,76 @@ export const replayChunks = sqliteTable(
   })
 );
 
+export const processedSessions = sqliteTable(
+  'processed_sessions',
+  {
+    id: text('id').primaryKey(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => sessions.id),
+    status: text('status', {
+      enum: ['pending', 'processing', 'completed', 'failed'],
+    })
+      .notNull()
+      .default('pending'),
+    totalEvents: integer('total_events'),
+    totalReplayChunks: integer('total_replay_chunks'),
+    totalReplaySizeBytes: integer('total_replay_size_bytes'),
+    durationMs: integer('duration_ms'),
+    pagesVisited: text('pages_visited', { mode: 'json' }),
+    eventTypeCounts: text('event_type_counts', { mode: 'json' }),
+    timelineR2Key: text('timeline_r2_key'),
+    screenshotCount: integer('screenshot_count').default(0),
+    aiSummary: text('ai_summary'),
+    aiProcessedAt: integer('ai_processed_at', { mode: 'timestamp' }),
+    processedAt: integer('processed_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  table => ({
+    sessionIdx: uniqueIndex('idx_processed_sessions_session').on(
+      table.sessionId
+    ),
+    statusIdx: index('idx_processed_sessions_status').on(table.status),
+    processedAtIdx: index('idx_processed_sessions_processed_at').on(
+      table.processedAt
+    ),
+  })
+);
+
+export const sessionScreenshots = sqliteTable(
+  'session_screenshots',
+  {
+    id: text('id').primaryKey(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => sessions.id),
+    eventType: text('event_type').notNull(),
+    eventDescription: text('event_description'),
+    timestamp: integer('timestamp').notNull(),
+    r2Key: text('r2_key').notNull(),
+    sizeBytes: integer('size_bytes'),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  table => ({
+    sessionIdx: index('idx_session_screenshots_session').on(table.sessionId),
+    sessionTimestampIdx: index('idx_session_screenshots_session_timestamp').on(
+      table.sessionId,
+      table.timestamp
+    ),
+  })
+);
+
 export type Session = typeof sessions.$inferSelect;
 export type NewSession = typeof sessions.$inferInsert;
 export type Event = typeof events.$inferSelect;
 export type NewEvent = typeof events.$inferInsert;
 export type ReplayChunk = typeof replayChunks.$inferSelect;
 export type NewReplayChunk = typeof replayChunks.$inferInsert;
+export type ProcessedSession = typeof processedSessions.$inferSelect;
+export type NewProcessedSession = typeof processedSessions.$inferInsert;
+export type SessionScreenshot = typeof sessionScreenshots.$inferSelect;
+export type NewSessionScreenshot = typeof sessionScreenshots.$inferInsert;

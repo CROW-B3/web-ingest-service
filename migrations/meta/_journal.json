@@ -57,6 +57,20 @@
       "when": 1771526286346,
       "tag": "0007_wandering_skullbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1771526286347,
+      "tag": "0008_remove_project_user",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1771612686000,
+      "tag": "0009_session_processing",
+      "breakpoints": true
     }
   ]
 }
