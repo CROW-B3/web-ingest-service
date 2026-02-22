@@ -71,6 +71,13 @@
       "when": 1771612686000,
       "tag": "0009_session_processing",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1771612686001,
+      "tag": "0010_drop_unused_tables",
+      "breakpoints": true
     }
   ]
 }
