@@ -51,17 +51,10 @@ export async function handleGetProcessedSession(
         eventType: s.eventType,
         eventDescription: s.eventDescription,
         timestamp: s.timestamp,
-        r2Key: s.r2Key,
+        url: `${env.R2_PUBLIC_URL}/${s.r2Key}`,
         sizeBytes: s.sizeBytes,
         createdAt: s.createdAt,
       }));
-    }
-
-    if (include.includes('timeline') && processed.timelineR2Key) {
-      const timelineObject = await env.R2_BUCKET.get(processed.timelineR2Key);
-      if (timelineObject) {
-        result.timeline = await timelineObject.json();
-      }
     }
 
     return createSuccessResponse(result);

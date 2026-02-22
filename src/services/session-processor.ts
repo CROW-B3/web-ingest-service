@@ -66,6 +66,7 @@ export async function processExpiredSession(
 
   try {
     // Fetch session metadata
+    logger.info({ sessionId }, 'Phase A: Fetching session metadata');
     const session = await db
       .select()
       .from(sessions)
@@ -84,6 +85,11 @@ export async function processExpiredSession(
       .orderBy(asc(events.timestamp))
       .all();
 
+    logger.info(
+      { sessionId, eventCount: sessionEvents.length },
+      'Fetched events'
+    );
+
     // Fetch replay chunk metadata ordered by chunk_index
     const chunks = await db
       .select()
@@ -91,6 +97,11 @@ export async function processExpiredSession(
       .where(eq(replayChunks.sessionId, sessionId))
       .orderBy(asc(replayChunks.chunkIndex))
       .all();
+
+    logger.info(
+      { sessionId, chunkCount: chunks.length },
+      'Fetched replay chunks'
+    );
 
     // Fetch replay chunk data from R2
     const allRrwebEvents: unknown[] = [];
@@ -104,6 +115,15 @@ export async function processExpiredSession(
         totalReplaySizeBytes += chunk.sizeBytes;
       }
     }
+
+    logger.info(
+      {
+        sessionId,
+        rrwebEventCount: allRrwebEvents.length,
+        totalReplaySizeBytes,
+      },
+      'Fetched replay data from R2'
+    );
 
     // Determine replay start timestamp for offset calculation
     const replayStartTimestamp =
@@ -122,9 +142,10 @@ export async function processExpiredSession(
         eventType: event.type,
         url: event.url,
         description: buildEventDescription(event),
-        replayTimestampOffset: replayStartTimestamp
-          ? event.timestamp - replayStartTimestamp
-          : null,
+        replayTimestampOffset:
+          replayStartTimestamp !== null
+            ? Math.max(0, event.timestamp - replayStartTimestamp)
+            : null,
       };
     });
 
@@ -145,89 +166,175 @@ export async function processExpiredSession(
       .where(eq(sessions.id, sessionId))
       .run();
 
-    // Store timeline JSON in R2
-    const timelineR2Key = `processed/${sessionId}/timeline.json`;
-    await env.R2_BUCKET.put(
-      timelineR2Key,
-      JSON.stringify({
-        sessionId,
-        timeline,
-        metadata: { pagesVisited: [...pagesVisited], eventTypeCounts },
-      })
-    );
-
     // Phase B — Headless Re-rendering & Screenshots
 
-    const keyMoments = timeline.filter(entry =>
-      SCREENSHOT_EVENT_TYPES.has(entry.eventType)
-    );
+    const MAX_SCREENSHOTS = 30;
+    const keyMoments = timeline
+      .filter(entry => SCREENSHOT_EVENT_TYPES.has(entry.eventType))
+      .slice(0, MAX_SCREENSHOTS);
 
     let screenshotCount = 0;
 
+    logger.info(
+      { sessionId, keyMomentCount: keyMoments.length },
+      'Phase B: Starting screenshot capture'
+    );
+
     if (keyMoments.length > 0 && allRrwebEvents.length > 0) {
-      const browser = await puppeteer.launch(env.BROWSER);
+      if (!env.BROWSER) {
+        logger.warn(
+          { sessionId },
+          'BROWSER binding not available — skipping screenshots (not supported in local dev)'
+        );
+      } else {
+        logger.info({ sessionId }, 'Launching headless browser');
+        const BROWSER_TIMEOUT_MS = 120_000;
+        const browser = await puppeteer.launch(env.BROWSER);
+        logger.info({ sessionId }, 'Browser launched successfully');
 
-      try {
-        const page = await browser.newPage();
-        await page.setViewport({ width: 1280, height: 720 });
-
-        // Serve replay HTML directly via data URL to avoid needing an HTTP route
-        const replayHtml = generateReplayViewerHtml(allRrwebEvents);
-        await page.setContent(replayHtml, { waitUntil: 'networkidle0' });
-
-        // Wait for replay player to be ready
-        await page.waitForFunction('window.__replayReady === true', {
-          timeout: 30_000,
-        });
-
-        for (const moment of keyMoments) {
-          if (moment.replayTimestampOffset === null) continue;
-
+        const browserTimeout = setTimeout(async () => {
+          logger.warn({ sessionId }, 'Browser timeout reached — force closing');
           try {
-            // Seek to the key moment
-            await page.evaluate(
-              `window.__seekTo(${moment.replayTimestampOffset})`
+            await browser.close();
+          } catch {}
+        }, BROWSER_TIMEOUT_MS);
+
+        try {
+          const page = await browser.newPage();
+          await page.setViewport({ width: 1280, height: 720 });
+          logger.info({ sessionId }, 'Page created with viewport 1280x720');
+
+          // Serve replay HTML directly to avoid needing an HTTP route
+          const replayHtml = generateReplayViewerHtml(allRrwebEvents);
+          logger.info(
+            {
+              sessionId,
+              htmlLength: replayHtml.length,
+              rrwebEventCount: allRrwebEvents.length,
+            },
+            'Setting page content'
+          );
+          await page.setContent(replayHtml, { waitUntil: 'networkidle0' });
+          logger.info(
+            { sessionId },
+            'Page content set, waiting for replay player'
+          );
+
+          // Wait for replay player to be ready
+          await page.waitForFunction('window.__replayReady === true', {
+            timeout: 30_000,
+          });
+          logger.info({ sessionId }, 'Replay player is ready');
+
+          // Check if the replayer encountered an initialization error
+          const replayError = await page.evaluate('window.__replayError');
+          if (replayError) {
+            logger.error(
+              { sessionId, replayError },
+              'Replayer failed to initialize — skipping screenshots'
             );
-
-            // Take screenshot
-            const screenshotBuffer = await page.screenshot({
-              type: 'png',
-              fullPage: false,
-            });
-
-            const screenshotR2Key = `screenshots/${sessionId}/${moment.timestamp}_${moment.eventType}.png`;
-            const screenshotData = screenshotBuffer as Uint8Array;
-
-            await env.R2_BUCKET.put(screenshotR2Key, screenshotData);
-
-            // Insert screenshot record
-            await db
-              .insert(sessionScreenshots)
-              .values({
-                id: generateId('ss'),
-                sessionId,
-                eventType: moment.eventType,
-                eventDescription: moment.description,
-                timestamp: moment.timestamp,
-                r2Key: screenshotR2Key,
-                sizeBytes: screenshotData.byteLength,
-              })
-              .run();
-
-            screenshotCount++;
-          } catch (screenshotError) {
-            logger.warn(
-              { sessionId, moment, error: screenshotError },
-              'Failed to capture screenshot for moment'
+          } else {
+            logger.info(
+              { sessionId, momentCount: keyMoments.length },
+              'Starting screenshot loop'
             );
+            for (const moment of keyMoments) {
+              if (moment.replayTimestampOffset === null) {
+                logger.warn(
+                  {
+                    sessionId,
+                    eventType: moment.eventType,
+                    timestamp: moment.timestamp,
+                  },
+                  'Skipping moment with null replayTimestampOffset'
+                );
+                continue;
+              }
+
+              try {
+                logger.info(
+                  {
+                    sessionId,
+                    eventType: moment.eventType,
+                    offset: moment.replayTimestampOffset,
+                  },
+                  'Seeking to moment'
+                );
+                // Seek to the key moment and wait for render
+                await page.evaluate(async (offset: number) => {
+                  await (globalThis as any).__seekTo(offset);
+                }, moment.replayTimestampOffset);
+                logger.info(
+                  { sessionId, eventType: moment.eventType },
+                  'Seek complete, taking screenshot'
+                );
+
+                // Take screenshot
+                const screenshotBuffer = await page.screenshot({
+                  type: 'png',
+                  fullPage: false,
+                });
+
+                const screenshotR2Key = `screenshots/${sessionId}/${moment.timestamp}_${moment.eventType}.png`;
+                const screenshotData = screenshotBuffer as Uint8Array;
+                logger.info(
+                  {
+                    sessionId,
+                    r2Key: screenshotR2Key,
+                    sizeBytes: screenshotData.byteLength,
+                  },
+                  'Saving screenshot to R2'
+                );
+
+                await env.R2_BUCKET.put(screenshotR2Key, screenshotData);
+
+                // Insert screenshot record
+                await db
+                  .insert(sessionScreenshots)
+                  .values({
+                    id: generateId('ss'),
+                    sessionId,
+                    eventType: moment.eventType,
+                    eventDescription: moment.description,
+                    timestamp: moment.timestamp,
+                    r2Key: screenshotR2Key,
+                    sizeBytes: screenshotData.byteLength,
+                  })
+                  .run();
+
+                screenshotCount++;
+                logger.info(
+                  {
+                    sessionId,
+                    eventType: moment.eventType,
+                    timestamp: moment.timestamp,
+                    screenshotCount,
+                  },
+                  'Screenshot captured and saved'
+                );
+              } catch (screenshotError) {
+                logger.warn(
+                  {
+                    sessionId,
+                    eventType: moment.eventType,
+                    timestamp: moment.timestamp,
+                    error: String(screenshotError),
+                  },
+                  'Failed to capture screenshot for moment'
+                );
+              }
+            }
           }
+        } finally {
+          clearTimeout(browserTimeout);
+          await browser.close();
+          logger.info({ sessionId, screenshotCount }, 'Browser closed');
         }
-      } finally {
-        await browser.close();
       }
     }
 
     // Phase C — Finalize
+    logger.info({ sessionId }, 'Phase C: Saving processed session record');
     await db
       .insert(processedSessions)
       .values({
@@ -239,7 +346,6 @@ export async function processExpiredSession(
         durationMs,
         pagesVisited: [...pagesVisited],
         eventTypeCounts,
-        timelineR2Key,
         screenshotCount,
         processedAt: new Date(),
       })

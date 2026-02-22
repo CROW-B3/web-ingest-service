@@ -103,7 +103,6 @@ export const processedSessions = sqliteTable(
     durationMs: integer('duration_ms'),
     pagesVisited: text('pages_visited', { mode: 'json' }),
     eventTypeCounts: text('event_type_counts', { mode: 'json' }),
-    timelineR2Key: text('timeline_r2_key'),
     screenshotCount: integer('screenshot_count').default(0),
     aiSummary: text('ai_summary'),
     aiProcessedAt: integer('ai_processed_at', { mode: 'timestamp' }),

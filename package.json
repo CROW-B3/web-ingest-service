@@ -3,9 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "deploy": "wrangler deploy --env production",
-    "deploy:dev": "wrangler deploy --env dev",
-    "dev": "wrangler dev --env local --port 8013 --inspector-port 9242 | pino-pretty",
+    "bundle:rrweb": "bun scripts/bundle-rrweb.ts",
+    "prebuild": "bun run bundle:rrweb",
+    "deploy": "bun run bundle:rrweb && wrangler deploy --env production",
+    "deploy:dev": "bun run bundle:rrweb && wrangler deploy --env dev",
+    "dev": "bun run bundle:rrweb && wrangler dev --env local --port 8013 --inspector-port 9242 | pino-pretty",
     "start": "wrangler dev",
     "cf-typegen": "wrangler types",
     "prepare": "husky",
@@ -16,6 +18,7 @@
   "packageManager": "bun@1.3.3",
   "dependencies": {
     "@cloudflare/puppeteer": "^1.0.6",
+    "rrweb": "2.0.0-alpha.20",
     "@microlabs/otel-cf-workers": "^1.0.0-rc.52",
     "drizzle-orm": "^0.45.1",
     "husky": "^9.1.7",

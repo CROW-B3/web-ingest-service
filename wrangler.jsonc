@@ -65,7 +65,9 @@
     ],
     "consumers": [
       {
-        "queue": "crow-session-expiry-queue-dev"
+        "queue": "crow-session-expiry-queue-dev",
+        "max_batch_size": 1,
+        "max_batch_timeout": 60
       }
     ]
   },
@@ -88,7 +90,9 @@
         ],
         "consumers": [
           {
-            "queue": "crow-session-expiry-queue-local"
+            "queue": "crow-session-expiry-queue-local",
+            "max_batch_size": 1,
+            "max_batch_timeout": 60
           }
         ]
       },
@@ -123,7 +127,9 @@
         ],
         "consumers": [
           {
-            "queue": "crow-session-expiry-queue-dev"
+            "queue": "crow-session-expiry-queue-dev",
+            "max_batch_size": 1,
+            "max_batch_timeout": 60
           }
         ]
       },
@@ -190,7 +196,9 @@
         ],
         "consumers": [
           {
-            "queue": "crow-session-expiry-queue"
+            "queue": "crow-session-expiry-queue",
+            "max_batch_size": 1,
+            "max_batch_timeout": 60
           }
         ]
       },
