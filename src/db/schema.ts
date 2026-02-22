@@ -97,11 +97,6 @@ export const processedSessions = sqliteTable(
     sessionId: text('session_id')
       .notNull()
       .references(() => sessions.id),
-    status: text('status', {
-      enum: ['pending', 'processing', 'completed', 'failed'],
-    })
-      .notNull()
-      .default('pending'),
     totalEvents: integer('total_events'),
     totalReplayChunks: integer('total_replay_chunks'),
     totalReplaySizeBytes: integer('total_replay_size_bytes'),
@@ -121,7 +116,6 @@ export const processedSessions = sqliteTable(
     sessionIdx: uniqueIndex('idx_processed_sessions_session').on(
       table.sessionId
     ),
-    statusIdx: index('idx_processed_sessions_status').on(table.status),
     processedAtIdx: index('idx_processed_sessions_processed_at').on(
       table.processedAt
     ),

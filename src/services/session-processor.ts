@@ -64,33 +64,6 @@ export async function processExpiredSession(
 
   // Phase A — Data Assembly
 
-  // Idempotency check
-  const existing = await db
-    .select()
-    .from(processedSessions)
-    .where(eq(processedSessions.sessionId, sessionId))
-    .get();
-
-  if (existing?.status === 'completed') {
-    logger.info({ sessionId }, 'Session already processed, skipping');
-    return;
-  }
-
-  // Insert or update processed session record
-  const processedId = existing?.id || generateId('ps');
-  if (existing) {
-    await db
-      .update(processedSessions)
-      .set({ status: 'processing' })
-      .where(eq(processedSessions.id, existing.id))
-      .run();
-  } else {
-    await db
-      .insert(processedSessions)
-      .values({ id: processedId, sessionId, status: 'processing' })
-      .run();
-  }
-
   try {
     // Fetch session metadata
     const session = await db
@@ -161,6 +134,16 @@ export async function processExpiredSession(
         ? sessionEvents[sessionEvents.length - 1].timestamp -
           sessionEvents[0].timestamp
         : session.durationInMilliseconds || 0;
+
+    // Mark session as ended
+    await db
+      .update(sessions)
+      .set({
+        endedAt: new Date(),
+        durationInMilliseconds: durationMs,
+      })
+      .where(eq(sessions.id, sessionId))
+      .run();
 
     // Store timeline JSON in R2
     const timelineR2Key = `processed/${sessionId}/timeline.json`;
@@ -246,9 +229,10 @@ export async function processExpiredSession(
 
     // Phase C — Finalize
     await db
-      .update(processedSessions)
-      .set({
-        status: 'completed',
+      .insert(processedSessions)
+      .values({
+        id: generateId('ps'),
+        sessionId,
         totalEvents: sessionEvents.length,
         totalReplayChunks: chunks.length,
         totalReplaySizeBytes,
@@ -259,7 +243,6 @@ export async function processExpiredSession(
         screenshotCount,
         processedAt: new Date(),
       })
-      .where(eq(processedSessions.sessionId, sessionId))
       .run();
 
     logger.info(
@@ -272,13 +255,6 @@ export async function processExpiredSession(
       'Session processing completed'
     );
   } catch (error) {
-    // Mark as failed
-    await db
-      .update(processedSessions)
-      .set({ status: 'failed' })
-      .where(eq(processedSessions.sessionId, sessionId))
-      .run();
-
     logger.error({ sessionId, error }, 'Session processing failed');
     throw error;
   }

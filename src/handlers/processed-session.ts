@@ -27,7 +27,6 @@ export async function handleGetProcessedSession(
     const result: Record<string, unknown> = {
       id: processed.id,
       sessionId: processed.sessionId,
-      status: processed.status,
       totalEvents: processed.totalEvents,
       totalReplayChunks: processed.totalReplayChunks,
       totalReplaySizeBytes: processed.totalReplaySizeBytes,

@@ -78,6 +78,13 @@
       "when": 1771612686001,
       "tag": "0010_drop_unused_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1740182400000,
+      "tag": "0011_drop_status_column",
+      "breakpoints": true
     }
   ]
 }
