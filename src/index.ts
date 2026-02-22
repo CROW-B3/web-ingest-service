@@ -19,7 +19,7 @@ export interface SessionStorageData {
   lastActivityAt: string;
 }
 
-const ONE_HOUR_MS = 3_600_000;
+const ONE_HOUR_MS = 1000 * 60 * 1;
 
 export class CrowWebSession extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
@@ -50,10 +50,16 @@ export class CrowWebSession extends DurableObject<Env> {
 
   async alarm(): Promise<void> {
     const session = await this.ctx.storage.get<SessionStorageData>('session');
-    logger.info(
-      { sessionId: session?.sessionId },
-      'DO: Alarm fired for session'
-    );
+    if (session) {
+      await this.env.SESSION_EXPIRY_QUEUE.send({
+        sessionId: session.sessionId,
+        expiredAt: new Date().toISOString(),
+      });
+      logger.info(
+        { sessionId: session.sessionId },
+        'DO: Session expired, sent to queue'
+      );
+    }
   }
 }
 
@@ -149,6 +155,19 @@ async function handleIncomingRequest(
 const handler = {
   async fetch(request: Request, env: Env): Promise<Response> {
     return handleIncomingRequest(request, env);
+  },
+  async queue(batch: MessageBatch, _env: Env): Promise<void> {
+    for (const message of batch.messages) {
+      const { sessionId, expiredAt } = message.body as {
+        sessionId: string;
+        expiredAt: string;
+      };
+      logger.info(
+        { sessionId, expiredAt },
+        'Queue: Session expiry processed — hi!'
+      );
+      message.ack();
+    }
   },
 };
 
