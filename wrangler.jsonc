@@ -56,6 +56,19 @@
     "enabled": true,
   },
   "logpush": true,
+  "queues": {
+    "producers": [
+      {
+        "binding": "SESSION_EXPIRY_QUEUE",
+        "queue": "crow-session-expiry-queue-dev"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "crow-session-expiry-queue-dev"
+      }
+    ]
+  },
   "placement": { "mode": "smart" },
   "routes": [
     { "pattern": "internal.ingest-worker.crowai.dev", "custom_domain": true }
@@ -63,6 +76,19 @@
   "env": {
     "local": {
       "name": "crow-web-ingest-worker-local",
+      "queues": {
+        "producers": [
+          {
+            "binding": "SESSION_EXPIRY_QUEUE",
+            "queue": "crow-session-expiry-queue-local"
+          }
+        ],
+        "consumers": [
+          {
+            "queue": "crow-session-expiry-queue-local"
+          }
+        ]
+      },
       "d1_databases": [
         {
           "binding": "DB",
@@ -85,6 +111,19 @@
     },
     "dev": {
       "name": "crow-web-ingest-worker-dev",
+      "queues": {
+        "producers": [
+          {
+            "binding": "SESSION_EXPIRY_QUEUE",
+            "queue": "crow-session-expiry-queue-dev"
+          }
+        ],
+        "consumers": [
+          {
+            "queue": "crow-session-expiry-queue-dev"
+          }
+        ]
+      },
       "d1_databases": [
         {
           "binding": "DB",
@@ -135,6 +174,19 @@
     },
     "production": {
       "name": "crow-web-ingest-worker",
+      "queues": {
+        "producers": [
+          {
+            "binding": "SESSION_EXPIRY_QUEUE",
+            "queue": "crow-session-expiry-queue"
+          }
+        ],
+        "consumers": [
+          {
+            "queue": "crow-session-expiry-queue"
+          }
+        ]
+      },
       "d1_databases": [
         {
           "binding": "DB",
