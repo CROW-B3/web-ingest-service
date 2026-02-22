@@ -5,6 +5,7 @@ import {
   findSessionById,
   markSessionHasReplay,
 } from '../repositories/session-repository';
+import { getSessionStub } from '../utils/durable-object';
 import { logger } from '../utils/logger';
 import {
   createErrorResponse,
@@ -22,10 +23,7 @@ function isPayloadTooLarge(request: Request): boolean {
   );
 }
 
-function buildR2Key(
-  sessionId: string,
-  chunkIndex: number
-): string {
+function buildR2Key(sessionId: string, chunkIndex: number): string {
   return `replay/${sessionId}/chunk_${chunkIndex}.json`;
 }
 
@@ -129,6 +127,9 @@ export async function handleReplayBatch(
         404
       );
     }
+
+    const stub = getSessionStub(environment, validatedData.sessionId);
+    await stub.extendSession();
 
     const chunkId = await storeAndRecordReplayChunk(
       database,
