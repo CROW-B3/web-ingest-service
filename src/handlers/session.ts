@@ -1,8 +1,10 @@
+import type { SessionStorageData } from '../index';
 import { createDatabaseClient } from '../db/client';
 import {
   insertNewSession,
   updateSessionEndData,
 } from '../repositories/session-repository';
+import { getSessionStub } from '../utils/durable-object';
 import { logger } from '../utils/logger';
 import {
   createErrorResponse,
@@ -71,6 +73,10 @@ export async function handleSessionStart(
 
     const userAgent = validatedData.context.userAgent;
 
+    const deviceType = parseDeviceTypeFromUserAgent(userAgent);
+    const browser = parseBrowserFromUserAgent(userAgent);
+    const operatingSystem = parseOperatingSystemFromUserAgent(userAgent);
+
     await insertNewSession(database, {
       sessionId: validatedData.sessionId,
       initialUrl: validatedData.context.url,
@@ -78,10 +84,25 @@ export async function handleSessionStart(
       userAgent,
       ipAddress: extractIpAddressFromRequest(request),
       country: extractCountryFromRequest(request),
-      deviceType: parseDeviceTypeFromUserAgent(userAgent),
-      browser: parseBrowserFromUserAgent(userAgent),
-      operatingSystem: parseOperatingSystemFromUserAgent(userAgent),
+      deviceType,
+      browser,
+      operatingSystem,
     });
+
+    const now = new Date().toISOString();
+    const sessionStorageData: SessionStorageData = {
+      sessionId: validatedData.sessionId,
+      startedAt: now,
+      initialUrl: validatedData.context.url,
+      userAgent,
+      deviceType,
+      browser,
+      operatingSystem,
+      lastActivityAt: now,
+    };
+
+    const stub = getSessionStub(environment, validatedData.sessionId);
+    await stub.initializeSession(sessionStorageData);
 
     const expiresAt = calculateSessionExpirationTime();
 
