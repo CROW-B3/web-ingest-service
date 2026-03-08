@@ -14,7 +14,7 @@ async function verifyApiKey(apiKey: string): Promise<string | null> {
     const response = await fetch(AUTH_VERIFY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiKey }),
+      body: JSON.stringify({ key: apiKey }),
     });
     if (!response.ok) return null;
     const data = (await response.json()) as {
