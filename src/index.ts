@@ -58,17 +58,10 @@ export class CrowWebSession extends DurableObject<Env> {
 }
 
 function createHealthCheckResponse(): Response {
-  return new Response(
-    JSON.stringify({
-      status: 'ok',
-      service: 'web-ingest-worker',
-      version: '1.0.0',
-    }),
-    {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
-    }
-  );
+  return new Response(JSON.stringify({ status: 'ok' }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders },
+  });
 }
 
 function createNotFoundResponse(): Response {
@@ -79,7 +72,7 @@ function createNotFoundResponse(): Response {
 }
 
 function isHealthCheckRequest(pathname: string, method: string): boolean {
-  return pathname === '/' && method === 'GET';
+  return (pathname === '/' || pathname === '/health') && method === 'GET';
 }
 
 function isTrackRequest(pathname: string, method: string): boolean {
