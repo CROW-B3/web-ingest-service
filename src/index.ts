@@ -17,6 +17,35 @@ import { handleTrack } from './handlers/track';
 import { createOtelConfig } from './lib/otel';
 import { corsHeaders, handleCorsPreFlight } from './middleware/cors';
 import { logger } from './utils/logger';
+import { createErrorResponse } from './utils/responses';
+
+const AUTH_VERIFY_URL = 'https://dev.api.crowai.dev/api/v1/auth/api-key/verify';
+
+async function verifyBearerApiKey(
+  request: Request,
+  env: Env
+): Promise<boolean> {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return false;
+  const apiKey = authHeader.slice(7).trim();
+  if (!apiKey) return false;
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (env.SERVICE_API_KEY) {
+      headers['X-Service-API-Key'] = env.SERVICE_API_KEY;
+    }
+    const response = await fetch(AUTH_VERIFY_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ key: apiKey }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
 
 export class CrowWebSession extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
@@ -144,14 +173,20 @@ async function handleIncomingRequest(
   }
 
   if (isListSessionsRequest(pathname, method)) {
+    const authed = await verifyBearerApiKey(request, env);
+    if (!authed) return createErrorResponse('Authentication required', 401);
     return handleListSessionsForOrganization(request, env, pathname);
   }
 
   if (isGetSessionEventsRequest(pathname, method)) {
+    const authed = await verifyBearerApiKey(request, env);
+    if (!authed) return createErrorResponse('Authentication required', 401);
     return handleGetSessionEvents(request, env, pathname);
   }
 
   if (isGetSessionReplayRequest(pathname, method)) {
+    const authed = await verifyBearerApiKey(request, env);
+    if (!authed) return createErrorResponse('Authentication required', 401);
     return handleGetSessionReplay(request, env, pathname);
   }
 
@@ -174,6 +209,9 @@ async function handleIncomingRequest(
 const handler = {
   async fetch(request: Request, env: Env): Promise<Response> {
     return handleIncomingRequest(request, env);
+  },
+  async queue(_batch: MessageBatch, _env: Env): Promise<void> {
+    // This worker only produces to the queue; no messages are consumed here.
   },
 };
 
