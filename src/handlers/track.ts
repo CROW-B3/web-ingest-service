@@ -1,7 +1,8 @@
+import type { Event } from '../validation/schemas';
 import { createDatabaseClient } from '../db/client';
 import { insertTrackingEvent } from '../repositories/event-repository';
 import { findSessionById } from '../repositories/session-repository';
-import { getSessionStub } from '../utils/durable-object';
+import { enrichClickEventWithAiContext } from '../utils/ai-enrichment';
 import { logger } from '../utils/logger';
 import {
   createErrorResponse,
@@ -10,6 +11,26 @@ import {
 } from '../utils/responses';
 import { shouldStoreEvent } from '../validation/event-filters';
 import { trackRequestSchema } from '../validation/schemas';
+
+async function buildEnrichedEventData(ai: Ai, event: Event): Promise<Event> {
+  if (event.type !== 'click') return event;
+
+  const aiContext = await enrichClickEventWithAiContext(
+    ai,
+    event.url,
+    (event.data || {}) as Record<string, unknown>
+  );
+
+  if (!aiContext) return event;
+
+  return {
+    ...event,
+    data: {
+      ...event.data,
+      aiContext,
+    },
+  };
+}
 
 export async function handleTrack(
   request: Request,
@@ -33,17 +54,19 @@ export async function handleTrack(
       );
     }
 
-    const stub = getSessionStub(environment, validatedData.sessionId);
-    await stub.extendSession();
-
     if (!shouldStoreEvent(validatedData.event.type)) {
       return createSuccessResponse({ eventId: null, skipped: true });
     }
 
+    const enrichedEvent = await buildEnrichedEventData(
+      environment.AI,
+      validatedData.event
+    );
+
     const eventId = await insertTrackingEvent(
       database,
       validatedData.sessionId,
-      validatedData.event
+      enrichedEvent
     );
 
     logger.info({ eventId, type: validatedData.event.type }, 'Event tracked');

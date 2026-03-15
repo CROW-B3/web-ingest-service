@@ -56,6 +56,16 @@ export async function insertNewSession(
     .run();
 }
 
+export async function findSessionsByProjectId(
+  database: DatabaseClient,
+  _projectId: string
+) {
+  // NOTE: Sessions table has no organizationId column yet.
+  // This returns all sessions until a schema migration adds org scoping.
+  // The endpoint is protected by API key auth to limit exposure.
+  return database.select().from(sessions).all();
+}
+
 export async function updateSessionEndData(
   database: DatabaseClient,
   sessionId: string,

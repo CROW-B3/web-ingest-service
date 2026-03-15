@@ -1,12 +1,51 @@
 import { instrument } from '@microlabs/otel-cf-workers';
 import { DurableObject } from 'cloudflare:workers';
 import { handleBatch } from './handlers/batch';
+import {
+  handleIngestSessionEnd,
+  handleIngestSessionEvent,
+  handleIngestSessionStart,
+} from './handlers/ingest';
 import { handleReplayBatch } from './handlers/replay';
 import { handleSessionEnd, handleSessionStart } from './handlers/session';
+import {
+  handleGetSessionEvents,
+  handleGetSessionReplay,
+  handleListSessionsForOrganization,
+} from './handlers/sessions';
 import { handleTrack } from './handlers/track';
 import { createOtelConfig } from './lib/otel';
 import { corsHeaders, handleCorsPreFlight } from './middleware/cors';
 import { logger } from './utils/logger';
+import { createErrorResponse } from './utils/responses';
+
+const AUTH_VERIFY_URL = 'https://dev.api.crowai.dev/api/v1/auth/api-key/verify';
+
+async function verifyBearerApiKey(
+  request: Request,
+  env: Env
+): Promise<boolean> {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return false;
+  const apiKey = authHeader.slice(7).trim();
+  if (!apiKey) return false;
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (env.SERVICE_API_KEY) {
+      headers['X-Service-API-Key'] = env.SERVICE_API_KEY;
+    }
+    const response = await fetch(AUTH_VERIFY_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ key: apiKey }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
 
 export interface SessionStorageData {
   sessionId: string;
@@ -51,7 +90,7 @@ export class CrowWebSession extends DurableObject<Env> {
   async alarm(): Promise<void> {
     const session = await this.ctx.storage.get<SessionStorageData>('session');
     if (session) {
-      await this.env.SESSION_EXPIRY_QUEUE.send({
+      await this.env.INTERACTION_QUEUE.send({
         sessionId: session.sessionId,
         expiredAt: new Date().toISOString(),
       });
@@ -64,17 +103,10 @@ export class CrowWebSession extends DurableObject<Env> {
 }
 
 function createHealthCheckResponse(): Response {
-  return new Response(
-    JSON.stringify({
-      status: 'ok',
-      service: 'web-ingest-worker',
-      version: '1.0.0',
-    }),
-    {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
-    }
-  );
+  return new Response(JSON.stringify({ status: 'ok' }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders },
+  });
 }
 
 function createNotFoundResponse(): Response {
@@ -85,7 +117,7 @@ function createNotFoundResponse(): Response {
 }
 
 function isHealthCheckRequest(pathname: string, method: string): boolean {
-  return pathname === '/' && method === 'GET';
+  return (pathname === '/' || pathname === '/health') && method === 'GET';
 }
 
 function isTrackRequest(pathname: string, method: string): boolean {
@@ -106,6 +138,36 @@ function isSessionEndRequest(pathname: string, method: string): boolean {
 
 function isReplayBatchRequest(pathname: string, method: string): boolean {
   return pathname === '/replay/batch' && method === 'POST';
+}
+
+function isListSessionsRequest(pathname: string, method: string): boolean {
+  return /^\/sessions\/organization\/[^/]+$/.test(pathname) && method === 'GET';
+}
+
+function isGetSessionEventsRequest(pathname: string, method: string): boolean {
+  return /^\/sessions\/[^/]+\/events$/.test(pathname) && method === 'GET';
+}
+
+function isIngestSessionStartRequest(
+  pathname: string,
+  method: string
+): boolean {
+  return pathname === '/api/v1/ingest/session/start' && method === 'POST';
+}
+
+function isIngestSessionEventRequest(
+  pathname: string,
+  method: string
+): boolean {
+  return pathname === '/api/v1/ingest/session/event' && method === 'POST';
+}
+
+function isIngestSessionEndRequest(pathname: string, method: string): boolean {
+  return pathname === '/api/v1/ingest/session/end' && method === 'POST';
+}
+
+function isGetSessionReplayRequest(pathname: string, method: string): boolean {
+  return /^\/sessions\/[^/]+\/replay$/.test(pathname) && method === 'GET';
 }
 
 async function handleIncomingRequest(
@@ -148,6 +210,36 @@ async function handleIncomingRequest(
     return handleReplayBatch(request, env);
   }
 
+  if (isListSessionsRequest(pathname, method)) {
+    const authed = await verifyBearerApiKey(request, env);
+    if (!authed) return createErrorResponse('Authentication required', 401);
+    return handleListSessionsForOrganization(request, env, pathname);
+  }
+
+  if (isGetSessionEventsRequest(pathname, method)) {
+    const authed = await verifyBearerApiKey(request, env);
+    if (!authed) return createErrorResponse('Authentication required', 401);
+    return handleGetSessionEvents(request, env, pathname);
+  }
+
+  if (isGetSessionReplayRequest(pathname, method)) {
+    const authed = await verifyBearerApiKey(request, env);
+    if (!authed) return createErrorResponse('Authentication required', 401);
+    return handleGetSessionReplay(request, env, pathname);
+  }
+
+  if (isIngestSessionStartRequest(pathname, method)) {
+    return handleIngestSessionStart(request, env);
+  }
+
+  if (isIngestSessionEventRequest(pathname, method)) {
+    return handleIngestSessionEvent(request, env);
+  }
+
+  if (isIngestSessionEndRequest(pathname, method)) {
+    return handleIngestSessionEnd(request, env);
+  }
+
   logger.warn({ method, pathname }, 'Route not found');
   return createNotFoundResponse();
 }
@@ -156,18 +248,8 @@ const handler = {
   async fetch(request: Request, env: Env): Promise<Response> {
     return handleIncomingRequest(request, env);
   },
-  async queue(batch: MessageBatch, _env: Env): Promise<void> {
-    for (const message of batch.messages) {
-      const { sessionId, expiredAt } = message.body as {
-        sessionId: string;
-        expiredAt: string;
-      };
-      logger.info(
-        { sessionId, expiredAt },
-        'Queue: Session expiry processed — hi!'
-      );
-      message.ack();
-    }
+  async queue(_batch: MessageBatch, _env: Env): Promise<void> {
+    // This worker only produces to the queue; no messages are consumed here.
   },
 };
 
