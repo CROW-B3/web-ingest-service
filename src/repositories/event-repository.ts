@@ -1,4 +1,5 @@
 import type { DatabaseClient } from '../db/client';
+import { asc, eq } from 'drizzle-orm';
 import { generateId } from '../db/client';
 import { events } from '../db/schema';
 
@@ -8,6 +9,18 @@ interface TrackingEventData {
   timestamp: number;
   referrer?: string;
   data?: Record<string, unknown>;
+}
+
+export async function findEventsBySessionId(
+  database: DatabaseClient,
+  sessionId: string
+) {
+  return database
+    .select()
+    .from(events)
+    .where(eq(events.sessionId, sessionId))
+    .orderBy(asc(events.timestamp))
+    .all();
 }
 
 export async function insertTrackingEvent(

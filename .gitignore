@@ -164,3 +164,14 @@ dist
 !.dev.vars.example
 !.env.example
 .wrangler/
+
+# environment files with secrets
+.env
+.env.local
+.env*.local
+.env.development.local
+.env.test.local
+.env.production.local
+.dev.vars
+!.env.example
+!.dev.vars.example
