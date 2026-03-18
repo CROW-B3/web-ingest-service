@@ -7,7 +7,7 @@ import {
   createValidationErrorResponse,
 } from '../utils/responses';
 
-const AUTH_VERIFY_URL = 'https://dev.api.crowai.dev/api/v1/auth/api-key/verify';
+const AUTH_VERIFY_URL = 'http://localhost:8000/api/v1/auth/api-key/verify';
 
 async function verifyApiKey(apiKey: string): Promise<string | null> {
   try {
@@ -59,7 +59,7 @@ async function pushToInteractionQueue(
   sessionId: string,
   events: unknown[]
 ): Promise<void> {
-  if (!env.INTERACTION_QUEUE) return;
+  if (!env.SESSION_EXPIRY_QUEUE) return;
   const message = {
     organizationId,
     sourceType: 'web',
@@ -67,7 +67,7 @@ async function pushToInteractionQueue(
     data: JSON.stringify({ events, summary: { eventCount: events.length } }),
     timestamp: Date.now(),
   };
-  await env.INTERACTION_QUEUE.send(message);
+  await env.SESSION_EXPIRY_QUEUE.send(message);
 }
 
 export async function handleIngestSessionStart(
