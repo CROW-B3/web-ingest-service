@@ -6,7 +6,8 @@
   "compatibility_date": "2025-11-25",
   "compatibility_flags": ["nodejs_compat"],
   "ai": {
-    "binding": "AI"
+    "binding": "AI",
+    "remote": true
   },
   "dev": {
     "port": 8013
@@ -42,14 +43,6 @@
       "remote": true
     }
   ],
-  "queues": {
-    "producers": [
-      {
-        "binding": "INTERACTION_QUEUE",
-        "queue": "crow-interaction-queue-dev"
-      }
-    ]
-  },
   "r2_buckets": [
     {
       "binding": "R2_BUCKET",
@@ -117,7 +110,8 @@
         "R2_ENDPOINT": "https://8f0203259905d8923687286c84921e6c.r2.cloudflarestorage.com",
         "R2_BUCKET_NAME": "crow-web-ingest-service-store-local",
         "R2_PUBLIC_URL": "https://pub-e64a25eb7e0f46fab0acd0c47eb44194.r2.dev",
-        "AXIOM_DATASET": "crow-traces"
+        "AXIOM_DATASET": "crow-traces",
+        "CORE_INTERACTION_SERVICE_URL": "http://localhost:8008"
       }
     },
     "dev": {

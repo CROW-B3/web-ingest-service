@@ -19,7 +19,7 @@ import { corsHeaders, handleCorsPreFlight } from './middleware/cors';
 import { logger } from './utils/logger';
 import { createErrorResponse } from './utils/responses';
 
-const AUTH_VERIFY_URL = 'https://dev.api.crowai.dev/api/v1/auth/api-key/verify';
+const AUTH_VERIFY_URL = 'http://localhost:8000/api/v1/auth/api-key/verify';
 
 async function verifyBearerApiKey(
   request: Request,
@@ -58,7 +58,7 @@ export interface SessionStorageData {
   lastActivityAt: string;
 }
 
-const ONE_HOUR_MS = 1000 * 60 * 1;
+const THIRTY_SECONDS_MS = 1000 * 30;
 
 export class CrowWebSession extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
@@ -67,7 +67,7 @@ export class CrowWebSession extends DurableObject<Env> {
 
   async initializeSession(data: SessionStorageData): Promise<void> {
     await this.ctx.storage.put('session', data);
-    await this.ctx.storage.setAlarm(Date.now() + ONE_HOUR_MS);
+    await this.ctx.storage.setAlarm(Date.now() + THIRTY_SECONDS_MS);
     logger.info(
       { sessionId: data.sessionId },
       'DO: Session initialized with alarm'
@@ -79,7 +79,7 @@ export class CrowWebSession extends DurableObject<Env> {
     if (session) {
       session.lastActivityAt = new Date().toISOString();
       await this.ctx.storage.put('session', session);
-      await this.ctx.storage.setAlarm(Date.now() + ONE_HOUR_MS);
+      await this.ctx.storage.setAlarm(Date.now() + THIRTY_SECONDS_MS);
       logger.info(
         { sessionId: session.sessionId },
         'DO: Session alarm extended'
@@ -90,7 +90,7 @@ export class CrowWebSession extends DurableObject<Env> {
   async alarm(): Promise<void> {
     const session = await this.ctx.storage.get<SessionStorageData>('session');
     if (session) {
-      await this.env.INTERACTION_QUEUE.send({
+      await this.env.SESSION_EXPIRY_QUEUE.send({
         sessionId: session.sessionId,
         expiredAt: new Date().toISOString(),
       });
