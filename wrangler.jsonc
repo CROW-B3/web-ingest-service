@@ -62,19 +62,6 @@
     "enabled": true,
   },
   "logpush": true,
-  "queues": {
-    "producers": [
-      {
-        "binding": "SESSION_EXPIRY_QUEUE",
-        "queue": "crow-session-expiry-queue-dev"
-      }
-    ],
-    "consumers": [
-      {
-        "queue": "crow-session-expiry-queue-dev"
-      }
-    ]
-  },
   "placement": { "mode": "smart" },
   "routes": [
     { "pattern": "internal.ingest-worker.crowai.dev", "custom_domain": true }
