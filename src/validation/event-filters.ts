@@ -7,8 +7,11 @@ const DROPPED_EVENT_TYPES = new Set([
 
 const GATED_EVENT_TYPES = new Set(['rage_click', 'scroll', 'navigation']);
 
-export function shouldStoreEvent(eventType: string): boolean {
-  return (
-    !DROPPED_EVENT_TYPES.has(eventType) && !GATED_EVENT_TYPES.has(eventType)
-  );
+export function shouldStoreEvent(
+  eventType: string,
+  gatedEventsEnabled = false
+): boolean {
+  if (DROPPED_EVENT_TYPES.has(eventType)) return false;
+  if (GATED_EVENT_TYPES.has(eventType)) return gatedEventsEnabled;
+  return true;
 }
