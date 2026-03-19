@@ -71,9 +71,12 @@ async function processSingleBatchEvent(
 async function processBatchEvents(
   database: DatabaseClient,
   sessionId: string,
-  eventsList: any[]
+  eventsList: any[],
+  gatedEventsEnabled: boolean
 ): Promise<BatchProcessingResult> {
-  const storableEvents = eventsList.filter(e => shouldStoreEvent(e.type));
+  const storableEvents = eventsList.filter(e =>
+    shouldStoreEvent(e.type, gatedEventsEnabled)
+  );
   const skippedCount = eventsList.length - storableEvents.length;
 
   const processingPromises = storableEvents.map((event, index) =>
@@ -161,10 +164,12 @@ export async function handleBatch(
     const stub = getSessionStub(environment, validatedData.sessionId);
     await stub.extendSession();
 
+    const gatedEventsEnabled = environment.ENABLE_GATED_EVENTS === 'true';
     const processingResult = await processBatchEvents(
       database,
       validatedData.sessionId,
-      validatedData.events
+      validatedData.events,
+      gatedEventsEnabled
     );
 
     logger.info(
