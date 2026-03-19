@@ -94,7 +94,7 @@ export const sessionEndRequestSchema = z.object({
 export const replayBatchRequestSchema = z.object({
   sessionId: z.string(),
   chunkIndex: z.number().int().min(0),
-  events: z.array(z.any()).min(1).max(500),
+  events: z.array(z.any()).min(1),
   timestamp: z.number(),
 });
 
