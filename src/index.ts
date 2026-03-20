@@ -289,9 +289,7 @@ const handler = {
   async fetch(request: Request, env: Env): Promise<Response> {
     return handleIncomingRequest(request, env);
   },
-  async queue(_batch: MessageBatch, _env: Env): Promise<void> {
-    // This worker only produces to the queue; no messages are consumed here.
-  },
+  async queue(_batch: MessageBatch, _env: Env): Promise<void> {},
 };
 
 export default instrument(handler, createOtelConfig('crow-web-ingest-service'));

@@ -32,7 +32,6 @@ export async function handleGetInternalSessionData(
 
   const events = await findEventsBySessionId(database, sessionId);
 
-  // Query rrweb_snapshots from D1 for this session
   let rrwebSnapshots: {
     id: string;
     sessionId: string;

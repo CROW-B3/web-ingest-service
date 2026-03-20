@@ -59,7 +59,6 @@ function getTimestampRange(replayEvents: any[]): {
   return { startTimestamp, endTimestamp };
 }
 
-// Stores replay events to R2 and records metadata in the database
 async function storeAndRecordReplayChunk(
   database: DatabaseClient,
   r2Bucket: R2Bucket,
