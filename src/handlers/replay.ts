@@ -14,12 +14,12 @@ import {
 } from '../utils/responses';
 import { replayBatchRequestSchema } from '../validation/schemas';
 
-const FIVE_MEGABYTES = 5 * 1024 * 1024;
+const ONE_HUNDRED_MEGABYTES = 100 * 1024 * 1024;
 
 function isPayloadTooLarge(request: Request): boolean {
   const contentLength = request.headers.get('content-length');
   return Boolean(
-    contentLength && Number.parseInt(contentLength, 10) > FIVE_MEGABYTES
+    contentLength && Number.parseInt(contentLength, 10) > ONE_HUNDRED_MEGABYTES
   );
 }
 
@@ -101,7 +101,7 @@ export async function handleReplayBatch(
 ): Promise<Response> {
   try {
     if (isPayloadTooLarge(request)) {
-      return createErrorResponse('Payload too large. Maximum 5MB.', 413);
+      return createErrorResponse('Payload too large. Maximum 100MB.', 413);
     }
 
     const requestBody = await request.json();
