@@ -9,17 +9,23 @@ import { logger } from '../utils/logger';
 import { createErrorResponse, createSuccessResponse } from '../utils/responses';
 
 function extractOrgIdFromPath(pathname: string): string | null {
-  const match = pathname.match(/^\/sessions\/organization\/([^/]+)$/);
+  const match =
+    pathname.match(/^\/sessions\/organization\/([^/]+)$/) ||
+    pathname.match(/^\/api\/v\d+\/ingest\/sessions\/organization\/([^/]+)$/);
   return match ? match[1] : null;
 }
 
 function extractSessionIdFromEventsPath(pathname: string): string | null {
-  const match = pathname.match(/^\/sessions\/([^/]+)\/events$/);
+  const match =
+    pathname.match(/^\/sessions\/([^/]+)\/events$/) ||
+    pathname.match(/^\/api\/v\d+\/ingest\/sessions\/([^/]+)\/events$/);
   return match ? match[1] : null;
 }
 
 function extractSessionIdFromReplayPath(pathname: string): string | null {
-  const match = pathname.match(/^\/sessions\/([^/]+)\/replay$/);
+  const match =
+    pathname.match(/^\/sessions\/([^/]+)\/replay$/) ||
+    pathname.match(/^\/api\/v\d+\/ingest\/sessions\/([^/]+)\/replay$/);
   return match ? match[1] : null;
 }
 
