@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 
-const ALARM_DELAY_MS = 30 * 1000; // 30 seconds for testing (change to 60 * 60 * 1000 for production)
+const ALARM_DELAY_MS = 30 * 1000;
 
 interface SessionMetadata {
   id: string;
@@ -288,7 +288,6 @@ export class CrowWebSessionDO extends DurableObject<Env> {
     };
 
     try {
-      // console.log(`[DO] Triggering core-interaction analysis for session ${metadata.id}`);
       const response = await fetch(`${serviceUrl}/analyze/session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
