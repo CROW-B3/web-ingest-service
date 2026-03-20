@@ -3,6 +3,7 @@ import { createDatabaseClient } from '../db/client';
 import { insertTrackingEvent } from '../repositories/event-repository';
 import { findSessionById } from '../repositories/session-repository';
 import { enrichClickEventWithAiContext } from '../utils/ai-enrichment';
+import { getSessionStub } from '../utils/durable-object';
 import { logger } from '../utils/logger';
 import {
   createErrorResponse,
@@ -69,6 +70,8 @@ export async function handleTrack(
       validatedData.sessionId,
       enrichedEvent
     );
+
+    getSessionStub(environment, validatedData.sessionId).extendSession();
 
     logger.info({ eventId, type: validatedData.event.type }, 'Event tracked');
 

@@ -265,16 +265,19 @@ async function handleIncomingRequest(
 
 async function notifyCoreInteractionService(
   env: Env,
-  sessionId: string
+  sessionId: string,
+  organizationId?: string | null
 ): Promise<void> {
-  const url = (env as unknown as Record<string, unknown>)
-    .CORE_INTERACTION_SERVICE_URL as string | undefined;
+  const url = env.CORE_INTERACTION_SERVICE_URL;
   if (!url) return;
   try {
     const response = await fetch(`${url}/internal/web-sessions/process`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId }),
+      body: JSON.stringify({
+        sessionId,
+        organizationId: organizationId ?? null,
+      }),
     });
     if (!response.ok) {
       logger.warn(
@@ -319,7 +322,7 @@ const handler = {
             { sessionId },
             'Queue: session already ended, notifying core service'
           );
-          await notifyCoreInteractionService(env, sessionId);
+          await notifyCoreInteractionService(env, sessionId, session.projectId);
           message.ack();
           continue;
         }
@@ -333,7 +336,7 @@ const handler = {
           'Queue: session expired and updated'
         );
 
-        await notifyCoreInteractionService(env, sessionId);
+        await notifyCoreInteractionService(env, sessionId, session.projectId);
 
         message.ack();
       } catch (error) {

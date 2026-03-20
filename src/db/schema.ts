@@ -21,6 +21,7 @@ export const sessions = sqliteTable(
     hasReplay: integer('has_replay', { mode: 'boolean' })
       .notNull()
       .default(false),
+    projectId: text('project_id'),
     exitContext: text('exit_context', { mode: 'json' }),
   },
   table => ({
