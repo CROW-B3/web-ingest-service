@@ -58,6 +58,7 @@ export const batchRequestSchema = z.object({
 export const sessionStartRequestSchema = z.object({
   sessionId: z.string(),
   context: contextSchema,
+  projectId: z.string().optional(),
 });
 
 const exitContextSchema = z

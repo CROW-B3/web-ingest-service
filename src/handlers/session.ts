@@ -87,6 +87,7 @@ export async function handleSessionStart(
       deviceType,
       browser,
       operatingSystem,
+      projectId: validatedData.projectId,
     });
 
     const now = new Date().toISOString();

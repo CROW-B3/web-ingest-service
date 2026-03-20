@@ -34,6 +34,7 @@ interface SessionInsertData {
   deviceType: string;
   browser: string;
   operatingSystem: string;
+  projectId: string | undefined;
 }
 
 export async function insertNewSession(
@@ -52,18 +53,20 @@ export async function insertNewSession(
       deviceType: sessionData.deviceType,
       browser: sessionData.browser,
       operatingSystem: sessionData.operatingSystem,
+      projectId: sessionData.projectId,
     })
     .run();
 }
 
 export async function findSessionsByProjectId(
   database: DatabaseClient,
-  _projectId: string
+  projectId: string
 ) {
-  // NOTE: Sessions table has no organizationId column yet.
-  // This returns all sessions until a schema migration adds org scoping.
-  // The endpoint is protected by API key auth to limit exposure.
-  return database.select().from(sessions).all();
+  return database
+    .select()
+    .from(sessions)
+    .where(eq(sessions.projectId, projectId))
+    .all();
 }
 
 export async function updateSessionEndData(
