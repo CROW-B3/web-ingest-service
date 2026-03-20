@@ -35,6 +35,22 @@
       },
     ],
   },
+  "queues": {
+    "producers": [
+      {
+        "binding": "INTERACTION_QUEUE",
+        "queue": "crow-interaction-queue-dev"
+      },
+      {
+        "binding": "SESSION_EXPIRY_QUEUE",
+        "queue": "crow-session-expiry-queue-dev"
+      },
+      {
+        "binding": "WEB_SESSION_EXPORT",
+        "queue": "crow-web-session-export-dev"
+      }
+    ]
+  },
   "d1_databases": [
     {
       "binding": "DB",
