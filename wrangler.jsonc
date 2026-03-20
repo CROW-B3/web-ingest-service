@@ -56,8 +56,16 @@
     "R2_PUBLIC_URL": "https://pub-e64a25eb7e0f46fab0acd0c47eb44194.r2.dev",
     "AXIOM_DATASET": "crow-traces",
     "CORE_INTERACTION_SERVICE_URL": "http://localhost:8008",
-    "ENABLE_GATED_EVENTS": "false"
+    "ENABLE_GATED_EVENTS": "false",
+    "R2_UPLOAD_PREFIX": "",
+    "GATEWAY_URL": "https://dev.api.crowai.dev"
   },
+  "secrets": [
+    "INTERNAL_GATEWAY_KEY",
+    "SERVICE_API_KEY",
+    "CLOUDFLARE_API_TOKEN",
+    "AXIOM_API_TOKEN"
+  ],
   "observability": {
     "enabled": true,
   },
@@ -149,7 +157,8 @@
         "AXIOM_DATASET": "crow-traces",
         "CORE_INTERACTION_SERVICE_URL": "https://dev.internal.interactions.crowai.dev",
         "ENABLE_GATED_EVENTS": "false",
-        "GATEWAY_URL": "https://dev.api.crowai.dev"
+        "GATEWAY_URL": "https://dev.api.crowai.dev",
+        "R2_UPLOAD_PREFIX": "dev/"
       },
       "ai": {
         "binding": "AI"
@@ -223,7 +232,8 @@
         "AXIOM_DATASET": "crow-traces",
         "CORE_INTERACTION_SERVICE_URL": "https://interactions.crowai.dev",
         "ENABLE_GATED_EVENTS": "false",
-        "GATEWAY_URL": "https://api.crowai.dev"
+        "GATEWAY_URL": "https://api.crowai.dev",
+        "R2_UPLOAD_PREFIX": "prod/"
       }
     },
   },
