@@ -1,11 +1,13 @@
 import { instrument } from '@microlabs/otel-cf-workers';
 import { DurableObject } from 'cloudflare:workers';
+import { createDatabaseClient } from './db/client';
 import { handleBatch } from './handlers/batch';
 import {
   handleIngestSessionEnd,
   handleIngestSessionEvent,
   handleIngestSessionStart,
 } from './handlers/ingest';
+import { handleGetInternalSessionData } from './handlers/internal-sessions';
 import { handleReplayBatch } from './handlers/replay';
 import { handleSessionEnd, handleSessionStart } from './handlers/session';
 import {
@@ -16,6 +18,10 @@ import {
 import { handleTrack } from './handlers/track';
 import { createOtelConfig } from './lib/otel';
 import { corsHeaders, handleCorsPreFlight } from './middleware/cors';
+import {
+  findSessionById,
+  updateSessionEndData,
+} from './repositories/session-repository';
 import { logger } from './utils/logger';
 import { createErrorResponse } from './utils/responses';
 
@@ -170,6 +176,15 @@ function isGetSessionReplayRequest(pathname: string, method: string): boolean {
   return /^\/sessions\/[^/]+\/replay$/.test(pathname) && method === 'GET';
 }
 
+function isInternalSessionDataRequest(
+  pathname: string,
+  method: string
+): boolean {
+  return (
+    /^\/internal\/sessions\/[^/]+\/data$/.test(pathname) && method === 'GET'
+  );
+}
+
 async function handleIncomingRequest(
   request: Request,
   env: Env
@@ -240,16 +255,95 @@ async function handleIncomingRequest(
     return handleIngestSessionEnd(request, env);
   }
 
+  if (isInternalSessionDataRequest(pathname, method)) {
+    return handleGetInternalSessionData(request, env, pathname);
+  }
+
   logger.warn({ method, pathname }, 'Route not found');
   return createNotFoundResponse();
+}
+
+async function notifyCoreInteractionService(
+  env: Env,
+  sessionId: string
+): Promise<void> {
+  const url = (env as unknown as Record<string, unknown>)
+    .CORE_INTERACTION_SERVICE_URL as string | undefined;
+  if (!url) return;
+  try {
+    const response = await fetch(`${url}/internal/web-sessions/process`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId }),
+    });
+    if (!response.ok) {
+      logger.warn(
+        { sessionId, status: response.status },
+        'Core interaction service notification failed'
+      );
+    } else {
+      logger.info({ sessionId }, 'Core interaction service notified');
+    }
+  } catch (error) {
+    logger.warn(
+      { error, sessionId },
+      'Failed to notify core interaction service'
+    );
+  }
 }
 
 const handler = {
   async fetch(request: Request, env: Env): Promise<Response> {
     return handleIncomingRequest(request, env);
   },
-  async queue(_batch: MessageBatch, _env: Env): Promise<void> {
-    // This worker only produces to the queue; no messages are consumed here.
+  async queue(batch: MessageBatch, env: Env): Promise<void> {
+    const database = createDatabaseClient(env.DB);
+
+    for (const message of batch.messages) {
+      const { sessionId, expiredAt } = message.body as {
+        sessionId: string;
+        expiredAt: string;
+      };
+
+      try {
+        const session = await findSessionById(database, sessionId);
+
+        if (!session) {
+          logger.warn({ sessionId }, 'Queue: session not found, acking');
+          message.ack();
+          continue;
+        }
+
+        if (session.endedAt) {
+          logger.info(
+            { sessionId },
+            'Queue: session already ended, notifying core service'
+          );
+          await notifyCoreInteractionService(env, sessionId);
+          message.ack();
+          continue;
+        }
+
+        const durationMs =
+          new Date(expiredAt).getTime() - session.startedAt.getTime();
+        await updateSessionEndData(database, sessionId, durationMs);
+
+        logger.info(
+          { sessionId, durationMs },
+          'Queue: session expired and updated'
+        );
+
+        await notifyCoreInteractionService(env, sessionId);
+
+        message.ack();
+      } catch (error) {
+        logger.error(
+          { error, sessionId },
+          'Queue: error processing session expiry'
+        );
+        message.retry();
+      }
+    }
   },
 };
 
