@@ -72,6 +72,10 @@
       "queues": {
         "producers": [
           {
+            "binding": "INTERACTION_QUEUE",
+            "queue": "crow-interaction-queue-local"
+          },
+          {
             "binding": "SESSION_EXPIRY_QUEUE",
             "queue": "crow-session-expiry-queue-local"
           }
@@ -109,6 +113,10 @@
       "queues": {
         "producers": [
           {
+            "binding": "INTERACTION_QUEUE",
+            "queue": "crow-interaction-queue-dev"
+          },
+          {
             "binding": "SESSION_EXPIRY_QUEUE",
             "queue": "crow-session-expiry-queue-dev"
           }
@@ -140,10 +148,15 @@
         "R2_PUBLIC_URL": "https://pub-e64a25eb7e0f46fab0acd0c47eb44194.r2.dev",
         "AXIOM_DATASET": "crow-traces",
         "CORE_INTERACTION_SERVICE_URL": "https://dev.internal.interactions.crowai.dev",
-        "ENABLE_GATED_EVENTS": "false"
+        "ENABLE_GATED_EVENTS": "false",
+        "GATEWAY_URL": "https://dev.api.crowai.dev"
+      },
+      "ai": {
+        "binding": "AI"
       },
       "routes": [
-        { "pattern": "dev.internal.ingest-worker.crowai.dev", "custom_domain": true }
+        { "pattern": "dev.internal.ingest-worker.crowai.dev", "custom_domain": true },
+        { "pattern": "dev.ingest.crowai.dev", "custom_domain": true }
       ],
       "migrations": [
         {
@@ -173,6 +186,10 @@
       "name": "crow-web-ingest-worker",
       "queues": {
         "producers": [
+          {
+            "binding": "INTERACTION_QUEUE",
+            "queue": "crow-interaction-queue"
+          },
           {
             "binding": "SESSION_EXPIRY_QUEUE",
             "queue": "crow-session-expiry-queue"
@@ -205,7 +222,8 @@
         "R2_PUBLIC_URL": "https://pub-703de4c152d04451ad7e562f1cedfca9.r2.dev",
         "AXIOM_DATASET": "crow-traces",
         "CORE_INTERACTION_SERVICE_URL": "https://interactions.crowai.dev",
-        "ENABLE_GATED_EVENTS": "false"
+        "ENABLE_GATED_EVENTS": "false",
+        "GATEWAY_URL": "https://api.crowai.dev"
       }
     },
   },
