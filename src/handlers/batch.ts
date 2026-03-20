@@ -164,7 +164,8 @@ export async function handleBatch(
     const stub = getSessionStub(environment, validatedData.sessionId);
     await stub.extendSession();
 
-    const gatedEventsEnabled = environment.ENABLE_GATED_EVENTS === 'true';
+    const gatedEventsEnabled =
+      (environment.ENABLE_GATED_EVENTS as string) === 'true';
     const processingResult = await processBatchEvents(
       database,
       validatedData.sessionId,

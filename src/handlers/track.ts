@@ -55,7 +55,8 @@ export async function handleTrack(
       );
     }
 
-    const gatedEventsEnabled = environment.ENABLE_GATED_EVENTS === 'true';
+    const gatedEventsEnabled =
+      (environment.ENABLE_GATED_EVENTS as string) === 'true';
     if (!shouldStoreEvent(validatedData.event.type, gatedEventsEnabled)) {
       return createSuccessResponse({ eventId: null, skipped: true });
     }
