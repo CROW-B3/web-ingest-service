@@ -1,4 +1,3 @@
-import { instrument } from '@microlabs/otel-cf-workers';
 import { DurableObject } from 'cloudflare:workers';
 import { handleBatch } from './handlers/batch';
 import {
@@ -14,7 +13,6 @@ import {
   handleListSessionsForOrganization,
 } from './handlers/sessions';
 import { handleTrack } from './handlers/track';
-import { createOtelConfig } from './lib/otel';
 import { corsHeaders, handleCorsPreFlight } from './middleware/cors';
 import { logger } from './utils/logger';
 import { createErrorResponse } from './utils/responses';
@@ -290,4 +288,4 @@ const handler = {
   async queue(_batch: MessageBatch, _env: Env): Promise<void> {},
 };
 
-export default instrument(handler, createOtelConfig('crow-web-ingest-service'));
+export default handler;
