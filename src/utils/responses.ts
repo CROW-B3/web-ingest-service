@@ -1,10 +1,25 @@
+const CORS_HEADERS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers':
+    'Content-Type, Authorization, X-Internal-Key, X-Service-API-Key',
+  'Access-Control-Max-Age': '86400',
+};
+
+export function createCorsPreflightResponse(): Response {
+  return new Response(null, {
+    status: 204,
+    headers: CORS_HEADERS,
+  });
+}
+
 function createJsonResponse(
   body: Record<string, unknown>,
   statusCode: number
 ): Response {
   return new Response(JSON.stringify(body), {
     status: statusCode,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
   });
 }
 

@@ -14,7 +14,10 @@ import {
 } from './handlers/sessions';
 import { handleTrack } from './handlers/track';
 import { logger } from './utils/logger';
-import { createErrorResponse } from './utils/responses';
+import {
+  createCorsPreflightResponse,
+  createErrorResponse,
+} from './utils/responses';
 
 const DEFAULT_GATEWAY_URL = 'https://dev.api.crowai.dev';
 
@@ -113,14 +116,20 @@ export class CrowWebSession extends DurableObject<Env> {
 function createHealthCheckResponse(): Response {
   return new Response(JSON.stringify({ status: 'ok' }), {
     status: 200,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    },
   });
 }
 
 function createNotFoundResponse(): Response {
   return new Response(JSON.stringify({ error: 'Not Found' }), {
     status: 404,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    },
   });
 }
 
@@ -210,6 +219,10 @@ async function handleIncomingRequest(
 
   logger.info({ method, pathname, url: request.url }, 'Incoming request');
 
+  if (method === 'OPTIONS') {
+    return createCorsPreflightResponse();
+  }
+
   if (isHealthCheckRequest(pathname, method)) {
     logger.info('Health check request');
     return createHealthCheckResponse();
@@ -285,7 +298,10 @@ const handler = {
         JSON.stringify({ success: false, errors: ['Internal server error'] }),
         {
           status: 500,
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
         }
       );
     }
