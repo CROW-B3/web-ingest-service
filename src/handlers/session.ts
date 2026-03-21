@@ -102,6 +102,7 @@ export async function handleSessionStart(
       browser,
       operatingSystem,
       lastActivityAt: now,
+      projectId: validatedData.projectId,
     };
 
     const stub = getSessionStub(environment, validatedData.sessionId);

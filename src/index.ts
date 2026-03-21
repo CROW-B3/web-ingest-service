@@ -5,6 +5,7 @@ import {
   handleIngestSessionEvent,
   handleIngestSessionStart,
 } from './handlers/ingest';
+import { handleGetInternalSessionData } from './handlers/internal-sessions';
 import { handleReplayBatch } from './handlers/replay';
 import { handleSessionEnd, handleSessionStart } from './handlers/session';
 import {
@@ -67,9 +68,10 @@ export interface SessionStorageData {
   browser: string;
   operatingSystem: string;
   lastActivityAt: string;
+  projectId?: string;
 }
 
-const ONE_HOUR_MS = 1000 * 60 * 60;
+const INACTIVITY_ALARM_MS = 30 * 1000;
 
 export class CrowWebSession extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
@@ -78,7 +80,7 @@ export class CrowWebSession extends DurableObject<Env> {
 
   async initializeSession(data: SessionStorageData): Promise<void> {
     await this.ctx.storage.put('session', data);
-    await this.ctx.storage.setAlarm(Date.now() + ONE_HOUR_MS);
+    await this.ctx.storage.setAlarm(Date.now() + INACTIVITY_ALARM_MS);
     logger.info(
       { sessionId: data.sessionId },
       'DO: Session initialized with alarm'
@@ -90,7 +92,7 @@ export class CrowWebSession extends DurableObject<Env> {
     if (session) {
       session.lastActivityAt = new Date().toISOString();
       await this.ctx.storage.put('session', session);
-      await this.ctx.storage.setAlarm(Date.now() + ONE_HOUR_MS);
+      await this.ctx.storage.setAlarm(Date.now() + INACTIVITY_ALARM_MS);
       logger.info(
         { sessionId: session.sessionId },
         'DO: Session alarm extended'
@@ -100,28 +102,63 @@ export class CrowWebSession extends DurableObject<Env> {
 
   async alarm(): Promise<void> {
     const session = await this.ctx.storage.get<SessionStorageData>('session');
-    if (session) {
-      const now = Date.now();
-      await this.env.INTERACTION_QUEUE.send({
-        sourceType: 'web',
+    if (!session) return;
+
+    const now = Date.now();
+
+    await this.env.INTERACTION_QUEUE.send({
+      sourceType: 'web',
+      sessionId: session.sessionId,
+      data: JSON.stringify({
+        type: 'session_expired',
         sessionId: session.sessionId,
-        data: JSON.stringify({
-          type: 'session_expired',
-          sessionId: session.sessionId,
-          startedAt: session.startedAt,
-          lastActivityAt: session.lastActivityAt,
-          initialUrl: session.initialUrl,
-          deviceType: session.deviceType,
-          browser: session.browser,
-          operatingSystem: session.operatingSystem,
-          expiredAt: new Date(now).toISOString(),
-        }),
-        timestamp: now,
-      });
-      logger.info(
-        { sessionId: session.sessionId },
-        'DO: Session expired, sent to queue'
-      );
+        startedAt: session.startedAt,
+        lastActivityAt: session.lastActivityAt,
+        initialUrl: session.initialUrl,
+        deviceType: session.deviceType,
+        browser: session.browser,
+        operatingSystem: session.operatingSystem,
+        expiredAt: new Date(now).toISOString(),
+      }),
+      timestamp: now,
+    });
+
+    logger.info(
+      { sessionId: session.sessionId },
+      'DO: Session expired, sent to queue'
+    );
+
+    const serviceUrl = this.env.CORE_INTERACTION_SERVICE_URL;
+    if (serviceUrl) {
+      try {
+        const response = await fetch(
+          `${serviceUrl}/internal/web-sessions/process`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sessionId: session.sessionId,
+              organizationId: session.projectId ?? null,
+            }),
+          }
+        );
+        if (response.ok) {
+          logger.info(
+            { sessionId: session.sessionId },
+            'DO: Core interaction service notified'
+          );
+        } else {
+          logger.warn(
+            { sessionId: session.sessionId, status: response.status },
+            'DO: Core interaction service notification failed'
+          );
+        }
+      } catch (error) {
+        logger.warn(
+          { error, sessionId: session.sessionId },
+          'DO: Failed to notify core interaction service'
+        );
+      }
     }
   }
 }
@@ -178,6 +215,15 @@ function isSessionEndRequest(pathname: string, method: string): boolean {
 
 function isReplayBatchRequest(pathname: string, method: string): boolean {
   return pathname === '/replay/batch' && method === 'POST';
+}
+
+function isInternalSessionDataRequest(
+  pathname: string,
+  method: string
+): boolean {
+  return (
+    /^\/internal\/sessions\/[^/]+\/data$/.test(pathname) && method === 'GET'
+  );
 }
 
 function isListSessionsRequest(pathname: string, method: string): boolean {
@@ -259,6 +305,10 @@ async function handleIncomingRequest(
 
   if (isReplayBatchRequest(pathname, method)) {
     return handleReplayBatch(request, env);
+  }
+
+  if (isInternalSessionDataRequest(pathname, method)) {
+    return handleGetInternalSessionData(request, env, pathname);
   }
 
   if (isListSessionsRequest(pathname, method)) {
