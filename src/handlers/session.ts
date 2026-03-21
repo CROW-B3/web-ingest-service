@@ -1,9 +1,11 @@
 import type { SessionStorageData } from '../index';
 import { createDatabaseClient } from '../db/client';
 import {
+  findSessionById,
   insertNewSession,
   updateSessionEndData,
 } from '../repositories/session-repository';
+import { notifyCoreInteractionService } from '../utils/core-service';
 import { getSessionStub } from '../utils/durable-object';
 import { logger } from '../utils/logger';
 import {
@@ -149,6 +151,13 @@ export async function handleSessionEnd(
     );
 
     logger.info({ sessionId: validatedData.sessionId }, 'Session ended');
+
+    const session = await findSessionById(database, validatedData.sessionId);
+    await notifyCoreInteractionService(
+      environment,
+      validatedData.sessionId,
+      session?.projectId
+    );
 
     return createSuccessResponse({});
   } catch (error) {

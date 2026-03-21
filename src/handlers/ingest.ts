@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { generateId } from '../db/client';
+import { notifyCoreInteractionService } from '../utils/core-service';
 import { logger } from '../utils/logger';
 import {
   createErrorResponse,
@@ -52,23 +53,6 @@ const sessionEndSchema = z.object({
   sessionId: z.string(),
   duration: z.number().optional(),
 });
-
-async function pushToInteractionQueue(
-  env: Env,
-  organizationId: string,
-  sessionId: string,
-  events: unknown[]
-): Promise<void> {
-  if (!env.SESSION_EXPIRY_QUEUE) return;
-  const message = {
-    organizationId,
-    sourceType: 'web',
-    sessionId,
-    data: JSON.stringify({ events, summary: { eventCount: events.length } }),
-    timestamp: Date.now(),
-  };
-  await env.SESSION_EXPIRY_QUEUE.send(message);
-}
 
 export async function handleIngestSessionStart(
   request: Request,
@@ -147,7 +131,7 @@ export async function handleIngestSessionEnd(
       'Ingest session end'
     );
 
-    await pushToInteractionQueue(env, organizationId, data.sessionId, []);
+    await notifyCoreInteractionService(env, data.sessionId, organizationId);
 
     return createSuccessResponse({ ended: true });
   } catch (error) {
