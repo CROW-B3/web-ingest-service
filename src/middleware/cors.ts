@@ -1,7 +1,7 @@
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Internal-Key',
 };
 
 export function handleCorsPreFlight(): Response {
@@ -12,8 +12,9 @@ export function handleCorsPreFlight(): Response {
 }
 
 export function addCorsHeadersToResponse(response: Response): Response {
+  const newResponse = new Response(response.body, response);
   Object.entries(corsHeaders).forEach(([key, value]) => {
-    response.headers.set(key, value);
+    newResponse.headers.set(key, value);
   });
-  return response;
+  return newResponse;
 }
