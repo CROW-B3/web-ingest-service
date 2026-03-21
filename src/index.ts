@@ -13,7 +13,6 @@ import {
   handleListSessionsForOrganization,
 } from './handlers/sessions';
 import { handleTrack } from './handlers/track';
-import { corsHeaders, handleCorsPreFlight } from './middleware/cors';
 import { logger } from './utils/logger';
 import { createErrorResponse } from './utils/responses';
 
@@ -114,14 +113,14 @@ export class CrowWebSession extends DurableObject<Env> {
 function createHealthCheckResponse(): Response {
   return new Response(JSON.stringify({ status: 'ok' }), {
     status: 200,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    headers: { 'Content-Type': 'application/json' },
   });
 }
 
 function createNotFoundResponse(): Response {
   return new Response(JSON.stringify({ error: 'Not Found' }), {
     status: 404,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    headers: { 'Content-Type': 'application/json' },
   });
 }
 
@@ -211,11 +210,6 @@ async function handleIncomingRequest(
 
   logger.info({ method, pathname, url: request.url }, 'Incoming request');
 
-  if (method === 'OPTIONS') {
-    logger.debug('Handling CORS preflight request');
-    return handleCorsPreFlight();
-  }
-
   if (isHealthCheckRequest(pathname, method)) {
     logger.info('Health check request');
     return createHealthCheckResponse();
@@ -291,7 +285,7 @@ const handler = {
         JSON.stringify({ success: false, errors: ['Internal server error'] }),
         {
           status: 500,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          headers: { 'Content-Type': 'application/json' },
         }
       );
     }

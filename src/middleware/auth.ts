@@ -1,5 +1,3 @@
-import { corsHeaders } from './cors';
-
 export function extractApiKeyFromRequest(request: Request): string | null {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) return null;
@@ -14,7 +12,7 @@ export function createUnauthorizedResponse(): Response {
     }),
     {
       status: 401,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      headers: { 'Content-Type': 'application/json' },
     }
   );
 }

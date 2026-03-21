@@ -1,12 +1,10 @@
-import { corsHeaders } from '../middleware/cors';
-
 function createJsonResponse(
   body: Record<string, unknown>,
   statusCode: number
 ): Response {
   return new Response(JSON.stringify(body), {
     status: statusCode,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    headers: { 'Content-Type': 'application/json' },
   });
 }
 

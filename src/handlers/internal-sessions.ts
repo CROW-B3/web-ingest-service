@@ -1,5 +1,4 @@
 import { createDatabaseClient } from '../db/client';
-import { corsHeaders } from '../middleware/cors';
 import { findEventsBySessionId } from '../repositories/event-repository';
 import { findSessionById } from '../repositories/session-repository';
 
@@ -12,7 +11,7 @@ export async function handleGetInternalSessionData(
   if (!match) {
     return new Response(JSON.stringify({ error: 'Invalid path' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 
@@ -25,7 +24,7 @@ export async function handleGetInternalSessionData(
       JSON.stringify({ success: false, error: 'Session not found' }),
       {
         status: 404,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        headers: { 'Content-Type': 'application/json' },
       }
     );
   }
@@ -63,7 +62,7 @@ export async function handleGetInternalSessionData(
     JSON.stringify({ success: true, session, events, rrwebSnapshots }),
     {
       status: 200,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      headers: { 'Content-Type': 'application/json' },
     }
   );
 }
