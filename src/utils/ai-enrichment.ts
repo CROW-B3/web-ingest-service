@@ -38,9 +38,13 @@ export async function enrichClickEventWithAiContext(
 
   try {
     const prompt = buildClickEnrichmentPrompt(element, page);
-    const result = (await ai.run('@cf/meta/llama-3.1-8b-instruct' as any, {
-      messages: [{ role: 'user', content: prompt }],
-    })) as { response?: string };
+    const result = (await ai.run(
+      '@cf/meta/llama-3.1-8b-instruct' as any,
+      {
+        messages: [{ role: 'user', content: prompt }],
+      },
+      { gateway: { id: 'crow-ai-gateway', skipCache: false } }
+    )) as { response?: string };
 
     return result.response || null;
   } catch (error) {
