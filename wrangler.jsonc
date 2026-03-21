@@ -85,7 +85,7 @@
   "logpush": true,
   "placement": { "mode": "smart" },
   "routes": [
-    { "pattern": "internal.ingest-worker.crowai.dev", "custom_domain": true }
+    { "pattern": "dev.internal.ingest-worker.crowai.dev", "custom_domain": true }
   ],
   "env": {
     "local": {
