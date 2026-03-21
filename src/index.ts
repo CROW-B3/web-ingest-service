@@ -283,7 +283,18 @@ async function handleIncomingRequest(
 
 const handler = {
   async fetch(request: Request, env: Env): Promise<Response> {
-    return handleIncomingRequest(request, env);
+    try {
+      return await handleIncomingRequest(request, env);
+    } catch (error) {
+      logger.error({ error }, 'Unhandled error in fetch handler');
+      return new Response(
+        JSON.stringify({ success: false, errors: ['Internal server error'] }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        }
+      );
+    }
   },
   async queue(_batch: MessageBatch, _env: Env): Promise<void> {},
 };
