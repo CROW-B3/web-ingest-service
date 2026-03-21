@@ -125,7 +125,9 @@
         "R2_PUBLIC_URL": "https://pub-e64a25eb7e0f46fab0acd0c47eb44194.r2.dev",
         "CORE_INTERACTION_SERVICE_URL": "https://dev.internal.interactions.crowai.dev",
         "ENABLE_GATED_EVENTS": "false",
-        "AI_GATEWAY_ID": "crow-ai-gateway"
+        "AI_GATEWAY_ID": "crow-ai-gateway",
+        "R2_ACCESS_KEY_ID": "ad5fa294fe572849448eef5ac0bebb49",
+        "R2_SECRET_ACCESS_KEY": "488f886b7497e0c758c8a2c61721eaf59881b34bc2908e7b5b564bceee94b6f1"
       }
     },
     "dev": {
