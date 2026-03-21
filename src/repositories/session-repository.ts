@@ -6,11 +6,16 @@ export async function findSessionById(
   database: DatabaseClient,
   sessionId: string
 ) {
-  return database
-    .select()
-    .from(sessions)
-    .where(eq(sessions.id, sessionId))
-    .get();
+  try {
+    const results = await database
+      .select()
+      .from(sessions)
+      .where(eq(sessions.id, sessionId))
+      .all();
+    return results[0] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function markSessionHasReplay(
