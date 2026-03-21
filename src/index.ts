@@ -101,9 +101,22 @@ export class CrowWebSession extends DurableObject<Env> {
   async alarm(): Promise<void> {
     const session = await this.ctx.storage.get<SessionStorageData>('session');
     if (session) {
+      const now = Date.now();
       await this.env.INTERACTION_QUEUE.send({
+        sourceType: 'web',
         sessionId: session.sessionId,
-        expiredAt: new Date().toISOString(),
+        data: JSON.stringify({
+          type: 'session_expired',
+          sessionId: session.sessionId,
+          startedAt: session.startedAt,
+          lastActivityAt: session.lastActivityAt,
+          initialUrl: session.initialUrl,
+          deviceType: session.deviceType,
+          browser: session.browser,
+          operatingSystem: session.operatingSystem,
+          expiredAt: new Date(now).toISOString(),
+        }),
+        timestamp: now,
       });
       logger.info(
         { sessionId: session.sessionId },
