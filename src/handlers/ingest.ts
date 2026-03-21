@@ -8,13 +8,21 @@ import {
   createValidationErrorResponse,
 } from '../utils/responses';
 
-const AUTH_VERIFY_URL = 'http://localhost:8000/api/v1/auth/api-key/verify';
+const DEFAULT_GATEWAY_URL = 'https://dev.api.crowai.dev';
 
-async function verifyApiKey(apiKey: string): Promise<string | null> {
+async function verifyApiKey(apiKey: string, env: Env): Promise<string | null> {
   try {
-    const response = await fetch(AUTH_VERIFY_URL, {
+    const gatewayUrl = env.GATEWAY_URL ?? DEFAULT_GATEWAY_URL;
+    const authVerifyUrl = `${gatewayUrl}/api/v1/auth/api-key/verify`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (env.SERVICE_API_KEY) {
+      headers['X-Service-API-Key'] = env.SERVICE_API_KEY;
+    }
+    const response = await fetch(authVerifyUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ key: apiKey }),
     });
     if (!response.ok) return null;
@@ -56,13 +64,13 @@ const sessionEndSchema = z.object({
 
 export async function handleIngestSessionStart(
   request: Request,
-  _env: Env
+  env: Env
 ): Promise<Response> {
   const apiKey = extractBearerToken(request);
   if (!apiKey)
     return createErrorResponse('Missing or invalid Authorization header', 401);
 
-  const organizationId = await verifyApiKey(apiKey);
+  const organizationId = await verifyApiKey(apiKey, env);
   if (!organizationId) return createErrorResponse('Invalid API key', 401);
 
   try {
@@ -83,13 +91,13 @@ export async function handleIngestSessionStart(
 
 export async function handleIngestSessionEvent(
   request: Request,
-  _env: Env
+  env: Env
 ): Promise<Response> {
   const apiKey = extractBearerToken(request);
   if (!apiKey)
     return createErrorResponse('Missing or invalid Authorization header', 401);
 
-  const organizationId = await verifyApiKey(apiKey);
+  const organizationId = await verifyApiKey(apiKey, env);
   if (!organizationId) return createErrorResponse('Invalid API key', 401);
 
   try {
@@ -119,7 +127,7 @@ export async function handleIngestSessionEnd(
   if (!apiKey)
     return createErrorResponse('Missing or invalid Authorization header', 401);
 
-  const organizationId = await verifyApiKey(apiKey);
+  const organizationId = await verifyApiKey(apiKey, env);
   if (!organizationId) return createErrorResponse('Invalid API key', 401);
 
   try {

@@ -45,9 +45,7 @@ async function verifyBearerApiKey(
     if (env.SERVICE_API_KEY) {
       headers['X-Service-API-Key'] = env.SERVICE_API_KEY;
     }
-    const gatewayUrl =
-      (env as unknown as Record<string, string>).GATEWAY_URL ??
-      DEFAULT_GATEWAY_URL;
+    const gatewayUrl = env.GATEWAY_URL ?? DEFAULT_GATEWAY_URL;
     const authVerifyUrl = `${gatewayUrl}/api/v1/auth/api-key/verify`;
     const response = await fetch(authVerifyUrl, {
       method: 'POST',

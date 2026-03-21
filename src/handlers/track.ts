@@ -72,7 +72,7 @@ export async function handleTrack(
       enrichedEvent
     );
 
-    getSessionStub(environment, validatedData.sessionId).extendSession();
+    await getSessionStub(environment, validatedData.sessionId).extendSession();
 
     logger.info({ eventId, type: validatedData.event.type }, 'Event tracked');
 
