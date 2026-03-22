@@ -1,6 +1,14 @@
+import type { SessionStorageData } from '../index';
 import { z } from 'zod';
-import { generateId } from '../db/client';
+import { createDatabaseClient, generateId } from '../db/client';
+import { insertTrackingEvent } from '../repositories/event-repository';
+import {
+  findSessionById,
+  insertNewSession,
+  updateSessionEndData,
+} from '../repositories/session-repository';
 import { notifyCoreInteractionService } from '../utils/core-service';
+import { getSessionStub } from '../utils/durable-object';
 import { logger } from '../utils/logger';
 import {
   createErrorResponse,
@@ -35,10 +43,37 @@ async function verifyApiKey(apiKey: string, env: Env): Promise<string | null> {
   }
 }
 
-function extractBearerToken(request: Request): string | null {
+function extractApiKey(request: Request): string | null {
+  const xApiKey = request.headers.get('X-API-Key');
+  if (xApiKey?.startsWith('crow_')) return xApiKey;
+
   const authHeader = request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  return authHeader.slice(7);
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  const token = authHeader.slice(7).trim();
+  return token || null;
+}
+
+function parseDeviceTypeFromUserAgent(userAgent: string): string {
+  if (/mobile/i.test(userAgent)) return 'mobile';
+  if (/tablet/i.test(userAgent)) return 'tablet';
+  return 'desktop';
+}
+
+function parseBrowserFromUserAgent(userAgent: string): string {
+  if (/chrome/i.test(userAgent)) return 'Chrome';
+  if (/firefox/i.test(userAgent)) return 'Firefox';
+  if (/safari/i.test(userAgent)) return 'Safari';
+  if (/edge/i.test(userAgent)) return 'Edge';
+  return 'Unknown';
+}
+
+function parseOperatingSystemFromUserAgent(userAgent: string): string {
+  if (/windows/i.test(userAgent)) return 'Windows';
+  if (/mac/i.test(userAgent)) return 'macOS';
+  if (/linux/i.test(userAgent)) return 'Linux';
+  if (/android/i.test(userAgent)) return 'Android';
+  if (/ios/i.test(userAgent)) return 'iOS';
+  return 'Unknown';
 }
 
 const sessionStartSchema = z.object({
@@ -51,9 +86,29 @@ const sessionStartSchema = z.object({
 
 const sessionEventSchema = z.object({
   sessionId: z.string(),
-  type: z.enum(['pageview', 'click', 'custom']),
+  type: z.enum([
+    'pageview',
+    'click',
+    'scroll',
+    'form',
+    'custom',
+    'error',
+    'navigation',
+    'engagement',
+    'visibility',
+    'rage_click',
+    'hover',
+    'form_focus',
+    'add_to_cart',
+    'variant_select',
+    'image_zoom',
+    'performance',
+    'web_vital',
+    'api_error',
+  ]),
   url: z.string().url(),
   title: z.string().optional(),
+  timestamp: z.number().optional(),
   properties: z.record(z.string(), z.any()).optional(),
 });
 
@@ -66,7 +121,7 @@ export async function handleIngestSessionStart(
   request: Request,
   env: Env
 ): Promise<Response> {
-  const apiKey = extractBearerToken(request);
+  const apiKey = extractApiKey(request);
   if (!apiKey)
     return createErrorResponse('Missing or invalid Authorization header', 401);
 
@@ -77,6 +132,42 @@ export async function handleIngestSessionStart(
     const body = await request.json();
     const data = sessionStartSchema.parse(body);
     const sessionId = data.sessionId || generateId('ses');
+    const userAgent = data.userAgent || request.headers.get('User-Agent') || '';
+    const deviceType = parseDeviceTypeFromUserAgent(userAgent);
+    const browser = parseBrowserFromUserAgent(userAgent);
+    const operatingSystem = parseOperatingSystemFromUserAgent(userAgent);
+    const ipAddress = request.headers.get('CF-Connecting-IP') || 'unknown';
+    const country = request.headers.get('CF-IPCountry') || undefined;
+
+    const database = createDatabaseClient(env.DB);
+    await insertNewSession(database, {
+      sessionId,
+      initialUrl: data.url,
+      referrer: data.referrer,
+      userAgent,
+      ipAddress,
+      country,
+      deviceType,
+      browser,
+      operatingSystem,
+      projectId: organizationId,
+    });
+
+    const now = new Date().toISOString();
+    const sessionStorageData: SessionStorageData = {
+      sessionId,
+      startedAt: now,
+      initialUrl: data.url,
+      userAgent,
+      deviceType,
+      browser,
+      operatingSystem,
+      lastActivityAt: now,
+      projectId: organizationId,
+    };
+
+    const stub = getSessionStub(env, sessionId);
+    await stub.initializeSession(sessionStorageData);
 
     logger.info({ organizationId, sessionId }, 'Ingest session start');
 
@@ -93,7 +184,7 @@ export async function handleIngestSessionEvent(
   request: Request,
   env: Env
 ): Promise<Response> {
-  const apiKey = extractBearerToken(request);
+  const apiKey = extractApiKey(request);
   if (!apiKey)
     return createErrorResponse('Missing or invalid Authorization header', 401);
 
@@ -103,10 +194,27 @@ export async function handleIngestSessionEvent(
   try {
     const body = await request.json();
     const data = sessionEventSchema.parse(body);
-    const eventId = generateId('evt');
+
+    const database = createDatabaseClient(env.DB);
+    const session = await findSessionById(database, data.sessionId);
+    if (!session)
+      return createErrorResponse(
+        'Session not found. Please start a session first.',
+        404
+      );
+
+    const eventId = await insertTrackingEvent(database, data.sessionId, {
+      type: data.type,
+      url: data.url,
+      timestamp: data.timestamp ?? Date.now(),
+      data: data.properties,
+    });
+
+    const stub = getSessionStub(env, data.sessionId);
+    await stub.extendSession();
 
     logger.info(
-      { organizationId, sessionId: data.sessionId, type: data.type },
+      { organizationId, sessionId: data.sessionId, type: data.type, eventId },
       'Ingest session event'
     );
 
@@ -123,7 +231,7 @@ export async function handleIngestSessionEnd(
   request: Request,
   env: Env
 ): Promise<Response> {
-  const apiKey = extractBearerToken(request);
+  const apiKey = extractApiKey(request);
   if (!apiKey)
     return createErrorResponse('Missing or invalid Authorization header', 401);
 
@@ -133,6 +241,14 @@ export async function handleIngestSessionEnd(
   try {
     const body = await request.json();
     const data = sessionEndSchema.parse(body);
+
+    const database = createDatabaseClient(env.DB);
+    const session = await findSessionById(database, data.sessionId);
+    if (!session) return createErrorResponse('Session not found', 404);
+
+    if (data.duration) {
+      await updateSessionEndData(database, data.sessionId, data.duration);
+    }
 
     logger.info(
       { organizationId, sessionId: data.sessionId },

@@ -104,10 +104,57 @@ export class CrowWebSession extends DurableObject<Env> {
     const session = await this.ctx.storage.get<SessionStorageData>('session');
     if (!session) return;
 
-    const now = Date.now();
+    logger.info(
+      { sessionId: session.sessionId },
+      'DO: Session expired, processing'
+    );
 
+    const serviceUrl = this.env.CORE_INTERACTION_SERVICE_URL;
+    if (!serviceUrl) {
+      await this.sendToInteractionQueue(session);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${serviceUrl}/internal/web-sessions/process`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: session.sessionId,
+            organizationId: session.projectId ?? null,
+          }),
+        }
+      );
+      if (response.ok) {
+        logger.info(
+          { sessionId: session.sessionId },
+          'DO: Core interaction service notified'
+        );
+        return;
+      }
+      logger.warn(
+        { sessionId: session.sessionId, status: response.status },
+        'DO: Core interaction service failed, falling back to queue'
+      );
+    } catch (error) {
+      logger.warn(
+        { error, sessionId: session.sessionId },
+        'DO: Failed to notify core interaction service, falling back to queue'
+      );
+    }
+
+    await this.sendToInteractionQueue(session);
+  }
+
+  private async sendToInteractionQueue(
+    session: SessionStorageData
+  ): Promise<void> {
+    const now = Date.now();
     await this.env.INTERACTION_QUEUE.send({
       sourceType: 'web',
+      organizationId: session.projectId ?? null,
       sessionId: session.sessionId,
       data: JSON.stringify({
         type: 'session_expired',
@@ -122,44 +169,10 @@ export class CrowWebSession extends DurableObject<Env> {
       }),
       timestamp: now,
     });
-
     logger.info(
       { sessionId: session.sessionId },
-      'DO: Session expired, sent to queue'
+      'DO: Session expired, sent to queue as fallback'
     );
-
-    const serviceUrl = this.env.CORE_INTERACTION_SERVICE_URL;
-    if (serviceUrl) {
-      try {
-        const response = await fetch(
-          `${serviceUrl}/internal/web-sessions/process`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              sessionId: session.sessionId,
-              organizationId: session.projectId ?? null,
-            }),
-          }
-        );
-        if (response.ok) {
-          logger.info(
-            { sessionId: session.sessionId },
-            'DO: Core interaction service notified'
-          );
-        } else {
-          logger.warn(
-            { sessionId: session.sessionId, status: response.status },
-            'DO: Core interaction service notification failed'
-          );
-        }
-      } catch (error) {
-        logger.warn(
-          { error, sessionId: session.sessionId },
-          'DO: Failed to notify core interaction service'
-        );
-      }
-    }
   }
 }
 
