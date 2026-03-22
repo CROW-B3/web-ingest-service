@@ -174,12 +174,17 @@
         "R2_PUBLIC_URL": "https://pub-e64a25eb7e0f46fab0acd0c47eb44194.r2.dev",
         "CORE_INTERACTION_SERVICE_URL": "https://dev.internal.interactions.crowai.dev",
         "ENABLE_GATED_EVENTS": "false",
-        "GATEWAY_URL": "https://dev.api.crowai.dev",
+        "GATEWAY_URL": "https://dev.internal.auth-api.crowai.dev",
         "R2_UPLOAD_PREFIX": "dev/",
-        "INTERNAL_GATEWAY_KEY": "",
-        "SERVICE_API_KEY": "",
+        "SERVICE_API_KEY": "crow-web-ingest-svc-key-a8f3e7b2c1d4",
         "AI_GATEWAY_ID": "crow-ai-gateway"
       },
+      "services": [
+        {
+          "binding": "AUTH_SERVICE",
+          "service": "crow-core-auth-service-dev"
+        }
+      ],
       "ai": {
         "binding": "AI"
       },

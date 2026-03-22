@@ -20,7 +20,7 @@ import {
   createErrorResponse,
 } from './utils/responses';
 
-const DEFAULT_GATEWAY_URL = 'https://dev.api.crowai.dev';
+const DEFAULT_GATEWAY_URL = 'https://dev.internal.auth-api.crowai.dev';
 
 function isInternalGatewayRequest(request: Request, env: Env): boolean {
   const internalKey = request.headers.get('X-Internal-Key');
@@ -43,6 +43,9 @@ async function verifyBearerApiKey(
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
+    if (env.INTERNAL_GATEWAY_KEY) {
+      headers['X-Internal-Key'] = env.INTERNAL_GATEWAY_KEY;
+    }
     if (env.SERVICE_API_KEY) {
       headers['X-Service-API-Key'] = env.SERVICE_API_KEY;
     }

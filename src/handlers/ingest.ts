@@ -16,15 +16,21 @@ import {
   createValidationErrorResponse,
 } from '../utils/responses';
 
-const DEFAULT_GATEWAY_URL = 'https://dev.api.crowai.dev';
+const DEFAULT_AUTH_URL = 'https://dev.internal.auth-api.crowai.dev';
 
 async function verifyApiKey(apiKey: string, env: Env): Promise<string | null> {
   try {
-    const gatewayUrl = env.GATEWAY_URL ?? DEFAULT_GATEWAY_URL;
-    const authVerifyUrl = `${gatewayUrl}/api/v1/auth/api-key/verify`;
+    const authUrl = (env as any).AUTH_SERVICE_URL ?? env.GATEWAY_URL ?? DEFAULT_AUTH_URL;
+    const isInternalAuth = authUrl.includes('internal.auth');
+    const authVerifyUrl = isInternalAuth
+      ? `${authUrl}/api/v1/auth/api-key/verify`
+      : `${authUrl}/api/v1/auth/api-key/verify`;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
+    if ((env as any).INTERNAL_GATEWAY_KEY) {
+      headers['X-Internal-Key'] = (env as any).INTERNAL_GATEWAY_KEY;
+    }
     if (env.SERVICE_API_KEY) {
       headers['X-Service-API-Key'] = env.SERVICE_API_KEY;
     }

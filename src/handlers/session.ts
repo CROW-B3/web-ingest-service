@@ -56,6 +56,32 @@ function calculateSessionExpirationTime(): number {
   return Date.now() + defaultSessionDurationInMinutes * millisecondsPerMinute;
 }
 
+async function resolveOrgFromApiKey(request: Request, env: Env): Promise<string | null> {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer crow_')) return null;
+  const apiKey = authHeader.slice(7).trim();
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (env.SERVICE_API_KEY) headers['X-Service-API-Key'] = env.SERVICE_API_KEY;
+
+    const authBinding = (env as any).AUTH_SERVICE as { fetch: typeof fetch } | undefined;
+    const fetcher = authBinding
+      ? (url: string, init: RequestInit) => authBinding.fetch(new Request(url, init))
+      : fetch;
+
+    const res = await fetcher('https://auth-service/api/v1/auth/api-key/verify', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ key: apiKey }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { key?: { metadata?: { organizationId?: string } } };
+    return data?.key?.metadata?.organizationId ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function handleSessionStart(
   request: Request,
   environment: Env
@@ -64,9 +90,12 @@ export async function handleSessionStart(
     const requestBody = await request.json();
     const validatedData = sessionStartRequestSchema.parse(requestBody);
 
+    const resolvedOrgId = validatedData.projectId || await resolveOrgFromApiKey(request, environment);
+
     logger.info(
       {
         sessionId: validatedData.sessionId,
+        organizationId: resolvedOrgId,
       },
       'Session start request'
     );
@@ -89,7 +118,7 @@ export async function handleSessionStart(
       deviceType,
       browser,
       operatingSystem,
-      projectId: validatedData.projectId,
+      projectId: resolvedOrgId,
     });
 
     const now = new Date().toISOString();
@@ -102,7 +131,7 @@ export async function handleSessionStart(
       browser,
       operatingSystem,
       lastActivityAt: now,
-      projectId: validatedData.projectId,
+      projectId: resolvedOrgId,
     };
 
     const stub = getSessionStub(environment, validatedData.sessionId);
