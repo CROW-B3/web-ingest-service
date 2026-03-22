@@ -65,15 +65,26 @@ async function resolveOrgFromApiKey(request: Request, env: Env): Promise<string 
     if (env.SERVICE_API_KEY) headers['X-Service-API-Key'] = env.SERVICE_API_KEY;
 
     const authBinding = (env as any).AUTH_SERVICE as { fetch: typeof fetch } | undefined;
-    const fetcher = authBinding
-      ? (url: string, init: RequestInit) => authBinding.fetch(new Request(url, init))
-      : fetch;
 
-    const res = await fetcher('https://auth-service/api/v1/auth/api-key/verify', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ key: apiKey }),
-    });
+    let res: Response;
+    if (authBinding) {
+      res = await authBinding.fetch(
+        new Request('https://auth-service/api/v1/auth/api-key/verify', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ key: apiKey }),
+        })
+      );
+    } else {
+      // Fallback to GATEWAY_URL when AUTH_SERVICE binding is not available
+      const gatewayUrl = env.GATEWAY_URL ?? 'https://dev.internal.auth-api.crowai.dev';
+      res = await fetch(`${gatewayUrl}/api/v1/auth/api-key/verify`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ key: apiKey }),
+      });
+    }
+
     if (!res.ok) return null;
     const data = (await res.json()) as { key?: { metadata?: { organizationId?: string } } };
     return data?.key?.metadata?.organizationId ?? null;
@@ -90,7 +101,7 @@ export async function handleSessionStart(
     const requestBody = await request.json();
     const validatedData = sessionStartRequestSchema.parse(requestBody);
 
-    const resolvedOrgId = validatedData.projectId || await resolveOrgFromApiKey(request, environment);
+    const resolvedOrgId = validatedData.projectId || await resolveOrgFromApiKey(request, environment) || undefined;
 
     logger.info(
       {
@@ -108,18 +119,28 @@ export async function handleSessionStart(
     const browser = parseBrowserFromUserAgent(userAgent);
     const operatingSystem = parseOperatingSystemFromUserAgent(userAgent);
 
-    await insertNewSession(database, {
-      sessionId: validatedData.sessionId,
-      initialUrl: validatedData.context.url,
-      referrer: validatedData.context.referrer,
-      userAgent,
-      ipAddress: extractIpAddressFromRequest(request),
-      country: extractCountryFromRequest(request),
-      deviceType,
-      browser,
-      operatingSystem,
-      projectId: resolvedOrgId,
-    });
+    try {
+      await insertNewSession(database, {
+        sessionId: validatedData.sessionId,
+        initialUrl: validatedData.context.url,
+        referrer: validatedData.context.referrer,
+        userAgent,
+        ipAddress: extractIpAddressFromRequest(request),
+        country: extractCountryFromRequest(request),
+        deviceType,
+        browser,
+        operatingSystem,
+        projectId: resolvedOrgId,
+      });
+    } catch (insertError) {
+      // Handle duplicate session ID (UNIQUE constraint violation)
+      const errorMessage = insertError instanceof Error ? insertError.message : String(insertError);
+      if (errorMessage.includes('UNIQUE') || errorMessage.includes('duplicate') || errorMessage.includes('already exists')) {
+        logger.warn({ sessionId: validatedData.sessionId }, 'Duplicate session ID, continuing with existing session');
+      } else {
+        throw insertError;
+      }
+    }
 
     const now = new Date().toISOString();
     const sessionStorageData: SessionStorageData = {
@@ -146,12 +167,17 @@ export async function handleSessionStart(
       expiresAt,
     });
   } catch (error) {
-    logger.error({ error }, 'Error starting session');
-
     if (error instanceof Error && error.name === 'ZodError') {
+      logger.warn({ error }, 'Session start validation error');
       return createValidationErrorResponse((error as any).errors);
     }
 
+    if (error instanceof SyntaxError) {
+      logger.warn({ error }, 'Session start request body is not valid JSON');
+      return createErrorResponse('Request body must be valid JSON', 400);
+    }
+
+    logger.error({ error }, 'Error starting session');
     return createErrorResponse('Internal server error', 500);
   }
 }
@@ -191,12 +217,17 @@ export async function handleSessionEnd(
 
     return createSuccessResponse({});
   } catch (error) {
-    logger.error({ error }, 'Error ending session');
-
     if (error instanceof Error && error.name === 'ZodError') {
+      logger.warn({ error }, 'Session end validation error');
       return createValidationErrorResponse((error as any).errors);
     }
 
+    if (error instanceof SyntaxError) {
+      logger.warn({ error }, 'Session end request body is not valid JSON');
+      return createErrorResponse('Request body must be valid JSON', 400);
+    }
+
+    logger.error({ error }, 'Error ending session');
     return createErrorResponse('Internal server error', 500);
   }
 }
