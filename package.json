@@ -11,11 +11,15 @@
     "prepare": "husky",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
-    "format": "bun prettier src/ --write"
+    "format": "bun prettier src/ --write",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "packageManager": "bun@1.3.3",
   "dependencies": {
+    "@hono/zod-openapi": "^1.2.0",
     "drizzle-orm": "^0.45.1",
+    "hono": "^4.11.3",
     "husky": "^9.1.7",
     "pino": "^10.1.0",
     "zod": "^4.2.1"
@@ -29,6 +33,7 @@
     "pino-pretty": "^13.1.3",
     "prettier": "^3.6.2",
     "typescript": "^5.5.2",
+    "vitest": "^4.1.0",
     "wrangler": "^4.59.1"
   },
   "lint-staged": {

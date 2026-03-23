@@ -1,3 +1,4 @@
+import { OpenAPIHono } from '@hono/zod-openapi';
 import { DurableObject } from 'cloudflare:workers';
 import { handleBatch } from './handlers/batch';
 import {
@@ -301,6 +302,18 @@ async function handleIncomingRequest(
   if (isHealthCheckRequest(pathname, method)) {
     logger.info('Health check request');
     return createHealthCheckResponse();
+  }
+
+  if (pathname === '/docs' && method === 'GET') {
+    const docsApp = new OpenAPIHono();
+    docsApp.doc('/docs', {
+      openapi: '3.0.0',
+      info: {
+        version: '1.0.0',
+        title: 'CROW Web Ingest Service',
+      },
+    });
+    return docsApp.fetch(request);
   }
 
   if (isTrackRequest(pathname, method)) {
