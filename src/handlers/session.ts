@@ -56,15 +56,22 @@ function calculateSessionExpirationTime(): number {
   return Date.now() + defaultSessionDurationInMinutes * millisecondsPerMinute;
 }
 
-async function resolveOrgFromApiKey(request: Request, env: Env): Promise<string | null> {
+async function resolveOrgFromApiKey(
+  request: Request,
+  env: Env
+): Promise<string | null> {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer crow_')) return null;
   const apiKey = authHeader.slice(7).trim();
   try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
     if (env.SERVICE_API_KEY) headers['X-Service-API-Key'] = env.SERVICE_API_KEY;
 
-    const authBinding = (env as any).AUTH_SERVICE as { fetch: typeof fetch } | undefined;
+    const authBinding = (env as any).AUTH_SERVICE as
+      | { fetch: typeof fetch }
+      | undefined;
 
     let res: Response;
     if (authBinding) {
@@ -76,8 +83,8 @@ async function resolveOrgFromApiKey(request: Request, env: Env): Promise<string 
         })
       );
     } else {
-      // Fallback to GATEWAY_URL when AUTH_SERVICE binding is not available
-      const gatewayUrl = env.GATEWAY_URL ?? 'https://dev.internal.auth-api.crowai.dev';
+      const gatewayUrl =
+        env.GATEWAY_URL ?? 'https://dev.internal.auth-api.crowai.dev';
       res = await fetch(`${gatewayUrl}/api/v1/auth/api-key/verify`, {
         method: 'POST',
         headers,
@@ -86,7 +93,9 @@ async function resolveOrgFromApiKey(request: Request, env: Env): Promise<string 
     }
 
     if (!res.ok) return null;
-    const data = (await res.json()) as { key?: { metadata?: { organizationId?: string } } };
+    const data = (await res.json()) as {
+      key?: { metadata?: { organizationId?: string } };
+    };
     return data?.key?.metadata?.organizationId ?? null;
   } catch {
     return null;
@@ -101,7 +110,10 @@ export async function handleSessionStart(
     const requestBody = await request.json();
     const validatedData = sessionStartRequestSchema.parse(requestBody);
 
-    const resolvedOrgId = validatedData.projectId || await resolveOrgFromApiKey(request, environment) || undefined;
+    const resolvedOrgId =
+      validatedData.projectId ||
+      (await resolveOrgFromApiKey(request, environment)) ||
+      undefined;
 
     logger.info(
       {
@@ -133,10 +145,19 @@ export async function handleSessionStart(
         projectId: resolvedOrgId,
       });
     } catch (insertError) {
-      // Handle duplicate session ID (UNIQUE constraint violation)
-      const errorMessage = insertError instanceof Error ? insertError.message : String(insertError);
-      if (errorMessage.includes('UNIQUE') || errorMessage.includes('duplicate') || errorMessage.includes('already exists')) {
-        logger.warn({ sessionId: validatedData.sessionId }, 'Duplicate session ID, continuing with existing session');
+      const errorMessage =
+        insertError instanceof Error
+          ? insertError.message
+          : String(insertError);
+      if (
+        errorMessage.includes('UNIQUE') ||
+        errorMessage.includes('duplicate') ||
+        errorMessage.includes('already exists')
+      ) {
+        logger.warn(
+          { sessionId: validatedData.sessionId },
+          'Duplicate session ID, continuing with existing session'
+        );
       } else {
         throw insertError;
       }
