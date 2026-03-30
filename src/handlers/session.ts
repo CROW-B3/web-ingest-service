@@ -56,6 +56,32 @@ function calculateSessionExpirationTime(): number {
   return Date.now() + defaultSessionDurationInMinutes * millisecondsPerMinute;
 }
 
+async function verifyApiKeyAndGetOrgId(
+  apiKey: string,
+  env: Env
+): Promise<string | null> {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (env.SERVICE_API_KEY) headers['X-Service-API-Key'] = env.SERVICE_API_KEY;
+    const gatewayUrl =
+      env.GATEWAY_URL ?? 'https://dev.internal.auth-api.crowai.dev';
+    const res = await fetch(`${gatewayUrl}/api/v1/auth/api-key/verify`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ key: apiKey }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      key?: { metadata?: { organizationId?: string } };
+    };
+    return data?.key?.metadata?.organizationId ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function resolveOrgFromApiKey(
   request: Request,
   env: Env
@@ -110,10 +136,18 @@ export async function handleSessionStart(
     const requestBody = await request.json();
     const validatedData = sessionStartRequestSchema.parse(requestBody);
 
-    const resolvedOrgId =
-      validatedData.projectId ||
-      (await resolveOrgFromApiKey(request, environment)) ||
-      undefined;
+    const rawProjectId = validatedData.projectId;
+    const isApiKeyAsProjectId = rawProjectId?.startsWith('crow_');
+    let resolvedOrgId: string | undefined;
+    if (isApiKeyAsProjectId) {
+      resolvedOrgId =
+        (await verifyApiKeyAndGetOrgId(rawProjectId, environment)) || undefined;
+    } else {
+      resolvedOrgId =
+        rawProjectId ||
+        (await resolveOrgFromApiKey(request, environment)) ||
+        undefined;
+    }
 
     logger.info(
       {
